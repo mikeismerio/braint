@@ -73,22 +73,21 @@ if uploaded_file:
             st.title("🧠 Análisis del Tumor")
 
             # 📌 AQUÍ SE MANTIENE EL CÓDIGO ORIGINAL DEL TUMOR TAL CUAL
-            # (NO SE HA MODIFICADO)
             # ------------------------------------------------------------------
 
             # 📌 Ruta de la imagen preprocesada
             image_path = "/lakehouse/default/Files/raw_data/tumor/tumor_032.jpg"
 
             # 📌 Cargar la imagen en escala de grises
-            image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            tumor_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
             # 📌 Verificar si la imagen se cargó correctamente
-            if image is None:
+            if tumor_image is None:
                 st.error("❌ No se pudo cargar la imagen.")
             else:
                 # 📌 Aplicar suavizado Gaussiano y detección de tumor
                 pixel_spacing = 0.035  # cm/píxel
-                blurred = cv2.GaussianBlur(image, (7, 7), 2)
+                blurred = cv2.GaussianBlur(tumor_image, (7, 7), 2)
                 _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
                 contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -103,11 +102,11 @@ if uploaded_file:
                     cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else 0
                     cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else 0
 
-                    tumor_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                    cv2.drawContours(tumor_image, [tumor_contour], -1, (0, 255, 0), 2)
-                    cv2.circle(tumor_image, (cx, cy), 5, (0, 0, 255), -1)
+                    tumor_contour_image = cv2.cvtColor(tumor_image, cv2.COLOR_GRAY2BGR)
+                    cv2.drawContours(tumor_contour_image, [tumor_contour], -1, (0, 255, 0), 2)
+                    cv2.circle(tumor_contour_image, (cx, cy), 5, (0, 0, 255), -1)
 
-                    st.image(tumor_image, caption="Detección de Tumor", width=250)
+                    st.image(tumor_contour_image, caption="Detección de Tumor", width=250)
 
                     st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
                     st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
