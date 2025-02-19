@@ -3,7 +3,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-# =================== INTERFAZ EN STREAMLIT ===================
+# =================== CONFIGURACIÓN DE LA PÁGINA ===================
+st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
+
 st.title("🧠 Detección y Análisis de Imágenes Médicas")
 
 # ✅ Permitir al usuario subir una imagen
@@ -21,22 +23,21 @@ if uploaded_file:
     else:
         st.success("✅ Imagen cargada correctamente.")
 
-        # 📌 Definir el tamaño estimado del píxel (depende de la resolución de la imagen médica)
-        pixel_spacing = 0.04  # cm/píxel
-
-        # 📌 Procesamiento para detección de tumores
-        blurred = cv2.GaussianBlur(image, (7, 7), 2)
-        _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        min_area_threshold = 200
-        tumor_contour = max(contours, key=cv2.contourArea) if contours else None
-
-        # 📌 Columnas para mostrar resultados
+        # 📌 Dividir la pantalla en dos columnas
         col1, col2 = st.columns(2)
 
-        with col2:  # Columna derecha (Resultados del tumor)
+        # =================== ANÁLISIS DEL TUMOR (Columna derecha) ===================
+        with col2:
             st.subheader("🧠 Análisis del Tumor")
+            pixel_spacing = 0.04  # cm/píxel
+
+            blurred = cv2.GaussianBlur(image, (7, 7), 2)
+            _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
+            contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            min_area_threshold = 200
+            tumor_contour = max(contours, key=cv2.contourArea) if contours else None
+
             if tumor_contour is not None and cv2.contourArea(tumor_contour) > min_area_threshold:
                 area_pixels = cv2.contourArea(tumor_contour)
                 area_cm2 = area_pixels * (pixel_spacing ** 2)
@@ -73,9 +74,9 @@ if uploaded_file:
             else:
                 st.error("❌ No se detectaron tumores.")
 
-        with col1:  # Columna izquierda (Análisis craneal)
+        # =================== ANÁLISIS CRANEAL (Columna izquierda) ===================
+        with col1:
             st.subheader("📏 Análisis del Cráneo")
-            # 📌 Aplicar procesamiento craneal
             blurred = cv2.GaussianBlur(image, (7, 7), 2)
             edges = cv2.Canny(blurred, 30, 100)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
@@ -114,17 +115,12 @@ if uploaded_file:
                 plt.title("Contorno del Cráneo con Diámetros")
                 st.pyplot(fig)
 
-                st.write(f"📏 **Área del cráneo:** `{diameter_transversal_cm * diameter_anteroposterior_cm:.2f} cm²`")
                 st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
                 st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
                 st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
                 st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
                 st.write(f"🧠 **Volumen craneal estimado:** `{volume_cm3:.2f} cm³`")
 
-                if not (52 <= diameter_transversal_cm <= 60):
-                    st.warning("⚠️ **El diámetro transversal podría no ser correcto.**")
-                if not (17 <= diameter_anteroposterior_cm <= 22):
-                    st.warning("⚠️ **El diámetro anteroposterior podría no ser correcto.**")
                 if not (1200 <= volume_cm3 <= 1700):
                     st.warning("⚠️ **El volumen craneal podría no ser correcto.**")
             else:
