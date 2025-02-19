@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 
-st.title("🧠 Detección y Análisis de Imágenes Médicas")
+# 📌 Barra lateral para seleccionar la página
+st.sidebar.title("📌 Navegación")
+page = st.sidebar.radio("Selecciona una sección:", ["Análisis del Tumor", "Análisis Craneal"])
 
 # ✅ Permitir al usuario subir una imagen
 uploaded_file = st.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
@@ -23,12 +25,10 @@ if uploaded_file:
     else:
         st.success("✅ Imagen cargada correctamente.")
 
-        # 📌 Dividir la pantalla en dos columnas
-        col1, col2 = st.columns(2)
+        # =================== PÁGINA 1: ANÁLISIS DEL TUMOR ===================
+        if page == "Análisis del Tumor":
+            st.title("🧠 Análisis del Tumor")
 
-        # =================== ANÁLISIS DEL TUMOR (Columna derecha) ===================
-        with col2:
-            st.subheader("🧠 Análisis del Tumor")
             pixel_spacing = 0.04  # cm/píxel
 
             blurred = cv2.GaussianBlur(image, (7, 7), 2)
@@ -74,9 +74,10 @@ if uploaded_file:
             else:
                 st.error("❌ No se detectaron tumores.")
 
-        # =================== ANÁLISIS CRANEAL (Columna izquierda) ===================
-        with col1:
-            st.subheader("📏 Análisis del Cráneo")
+        # =================== PÁGINA 2: ANÁLISIS CRANEAL ===================
+        elif page == "Análisis Craneal":
+            st.title("📏 Análisis del Cráneo")
+
             blurred = cv2.GaussianBlur(image, (7, 7), 2)
             edges = cv2.Canny(blurred, 30, 100)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
@@ -104,15 +105,10 @@ if uploaded_file:
                 estimated_cranial_height = 13
                 volume_cm3 = (4/3) * np.pi * (diameter_transversal_cm / 2) * (diameter_anteroposterior_cm / 2) * (estimated_cranial_height / 2)
 
-                contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
-                cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
-                cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)
-
                 fig = plt.figure(figsize=(6, 6))
-                plt.imshow(cv2.cvtColor(contour_image, cv2.COLOR_BGR2RGB))
+                plt.imshow(image, cmap="gray")
                 plt.axis("off")
-                plt.title("Contorno del Cráneo con Diámetros")
+                plt.title("Imagen Procesada del Cráneo")
                 st.pyplot(fig)
 
                 st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
@@ -125,5 +121,3 @@ if uploaded_file:
                     st.warning("⚠️ **El volumen craneal podría no ser correcto.**")
             else:
                 st.error("❌ No se detectaron contornos del cráneo.")
-
-# Fin del código
