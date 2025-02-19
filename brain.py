@@ -6,20 +6,22 @@ import matplotlib.pyplot as plt
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 
-# 📌 Barra lateral para seleccionar la página
-st.sidebar.title("📌 Navegación")
+# 📌 Barra lateral para selección de imagen y navegación
+st.sidebar.title("📌 Configuración")
+
+# ✅ Permitir al usuario subir una imagen en la barra lateral
+uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
+
+# 📌 Opciones de navegación en la barra lateral
 page = st.sidebar.radio("Selecciona una sección:", ["Análisis del Tumor", "Análisis Craneal"])
 
-# ✅ Permitir al usuario subir una imagen
-uploaded_file = st.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
-
+# 📌 Verificar si el usuario ha subido una imagen antes de continuar
 if uploaded_file:
     # ✅ Leer la imagen en memoria
     image_bytes = uploaded_file.read()
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
 
-    # ✅ Verificar si la imagen se cargó correctamente
     if image is None:
         st.error("❌ No se pudo cargar la imagen.")
     else:
@@ -55,7 +57,8 @@ if uploaded_file:
                 heatmap = cv2.applyColorMap(tumor_region, cv2.COLORMAP_JET)
                 heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
 
-                fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+                # 📌 Mostrar imágenes en tamaño reducido
+                fig, axs = plt.subplots(1, 2, figsize=(8, 4))  # 📏 Reducción de tamaño
                 axs[0].imshow(image, cmap="gray")
                 axs[0].set_title("Imagen Original")
                 axs[0].axis("off")
@@ -105,7 +108,8 @@ if uploaded_file:
                 estimated_cranial_height = 13
                 volume_cm3 = (4/3) * np.pi * (diameter_transversal_cm / 2) * (diameter_anteroposterior_cm / 2) * (estimated_cranial_height / 2)
 
-                fig = plt.figure(figsize=(6, 6))
+                # 📌 Imagen del cráneo en tamaño reducido
+                fig = plt.figure(figsize=(6, 4))  # 📏 Reducción de tamaño
                 plt.imshow(image, cmap="gray")
                 plt.axis("off")
                 plt.title("Imagen Procesada del Cráneo")
