@@ -22,11 +22,7 @@ if uploaded_file:
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
 
-    if image is None:
-        st.sidebar.error("❌ No se pudo cargar la imagen.")
-    else:
-        st.sidebar.success("✅ Imagen cargada correctamente.")
-
+    if image is not None:
         # =================== PÁGINA 1: ANÁLISIS DEL TUMOR ===================
         if page == "Análisis del Tumor":
             st.title("🧠 Análisis del Tumor")
@@ -48,19 +44,21 @@ if uploaded_file:
                 cx, cy = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])) if M["m00"] != 0 else (0, 0)
 
                 tumor_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                cv2.drawContours(tumor_image, [tumor_contour], -1, (0, 255, 0), 1)
-                cv2.circle(tumor_image, (cx, cy), 5, (0, 0, 255), -1)
+                cv2.drawContours(tumor_image, [tumor_contour], -1, (255, 255, 0), 1)  # Azul
+                cv2.circle(tumor_image, (cx, cy), 5, (0, 0, 255), -1)  # Rojo
 
                 mask = np.zeros_like(image, dtype=np.uint8)
                 cv2.drawContours(mask, [tumor_contour], -1, 255, thickness=cv2.FILLED)
                 tumor_region = cv2.bitwise_and(image, image, mask=mask)
-                heatmap = cv2.applyColorMap(tumor_region, cv2.COLORMAP_JET)
+
+                # 📌 Aplicar heatmap en rojo
+                heatmap = cv2.applyColorMap(tumor_region, cv2.COLORMAP_HOT)
                 heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
 
-                # 📌 Mostrar imágenes en tamaño reducido (por píxeles)
+                # 📌 Mostrar imágenes con fondo azul y heatmap en rojo
                 col1, col2 = st.columns(2)
-                col1.image(image, caption="Imagen Original", width=250)
-                col2.image(heatmap, caption="Segmentación del Tumor", width=250)
+                col1.image(tumor_image, caption="Segmentación con Fondo Azul", width=250)
+                col2.image(heatmap, caption="Heatmap en Rojo", width=250)
 
                 st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
                 st.write(f"📌 **Ubicación:** `({cx}, {cy})` en píxeles")
