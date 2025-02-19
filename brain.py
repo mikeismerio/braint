@@ -58,7 +58,7 @@ if uploaded_file:
                 cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)  # Línea vertical
 
                 # 📌 Mostrar la imagen procesada
-                st.image(contour_image, caption="Contorno del Cráneo", width=250)
+                st.image(contour_image, caption="Contorno del Cráneo", width=600)
                 st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
                 st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
                 st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
@@ -89,7 +89,7 @@ if uploaded_file:
                 cv2.drawContours(tumor_contour_image, [tumor_contour], -1, (0, 255, 0), 2)
                 cv2.circle(tumor_contour_image, (cx, cy), 5, (0, 0, 255), -1)
 
-                st.image(tumor_contour_image, caption="Detección de Tumor", width=250)
+                st.image(tumor_contour_image, caption="Detección de Tumor", width=600)
                 st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
                 st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
 
