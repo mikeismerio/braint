@@ -57,13 +57,13 @@ if uploaded_file:
                 heatmap = cv2.applyColorMap(tumor_region, cv2.COLORMAP_JET)
                 heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
 
-                # 📌 Mostrar imágenes en tamaño reducido
-                fig, axs = plt.subplots(1, 2, figsize=(6, 3))  # 📏 Reducción de tamaño
+                # 📌 Imágenes mucho más pequeñas
+                fig, axs = plt.subplots(1, 2, figsize=(3, 2))  # 📏 Reducción extrema de tamaño
                 axs[0].imshow(image, cmap="gray")
-                axs[0].set_title("Imagen Original")
+                axs[0].set_title("Original")
                 axs[0].axis("off")
                 axs[1].imshow(cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB))
-                axs[1].set_title("Segmentación del Tumor con Heatmap")
+                axs[1].set_title("Segmentación")
                 axs[1].axis("off")
                 st.pyplot(fig)
 
@@ -111,13 +111,15 @@ if uploaded_file:
                 cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)  # Línea horizontal
                 cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)  # Línea vertical
 
-                # 📌 Mostrar la imagen en tamaño reducido
-                fig = plt.figure(figsize=(6, 3))  # 📏 Reducción de tamaño
+                # 📌 Imágenes mucho más pequeñas
+                fig = plt.figure(figsize=(3, 2))  # 📏 Reducción extrema de tamaño
                 plt.imshow(cv2.cvtColor(contour_image, cv2.COLOR_BGR2RGB))
                 plt.axis("off")
-                plt.title("Contorno del Cráneo con Medidas")
+                plt.title("Contorno del Cráneo")
                 st.pyplot(fig)
 
+                st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
+                st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
                 st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
                 st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
 
