@@ -10,7 +10,7 @@ st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágene
 
 # 📌 Cargar el modelo de detección de tumores
 model_path = "2025-19-02_VGG_model.h5"
-model = load_model(model_path)
+model = load_model(model_path, compile=False)
 
 # 📌 Barra lateral para selección de imagen y navegación
 st.sidebar.title("📌 Configuración")
