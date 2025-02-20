@@ -56,7 +56,6 @@ if uploaded_file:
        
 
 
-        # =================== SEGMENTACIÓN DEL TUMOR ===================
         if tumor_detected:
             st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
             pixel_spacing = 0.04  # cm/píxel
@@ -86,7 +85,12 @@ if uploaded_file:
                 heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
 
                 # 📌 Mostrar segmentación
-                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=600)
+
+                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=200)
+
+                # 📌 Mostrar métricas del tumor
+                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
+                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
 
                 # 📌 Mostrar resultados finales
                 if area_cm2 > 10:
