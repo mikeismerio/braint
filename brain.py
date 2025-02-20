@@ -1,15 +1,21 @@
 import streamlit as st
 import cv2
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 
+# 📌 Cargar el modelo de detección de tumores
+model_path = "2025-19-02_VGG_model.h5"
+model = load_model(model_path)
+
 # 📌 Barra lateral para selección de imagen y navegación
 st.sidebar.title("📌 Configuración")
 
-# 📌 Opciones de navegación en la barra lateral (Primero Cráneo, luego Tumor)
+# 📌 Opciones de navegación en la barra lateral (Análisis Craneal o Tumor)
 page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor"])
 
 # ✅ Permitir al usuario subir una única imagen en la barra lateral
@@ -53,11 +59,11 @@ if uploaded_file:
 
                 # 📌 Dibujar contornos y líneas azules en la imagen procesada
                 contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)  # Verde para el contorno
-                cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)  # Línea horizontal
-                cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)  # Línea vertical
+                cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
+                cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
+                cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)
 
-                # 📌 Mostrar la imagen procesada
+                # 📌 Mostrar resultados
                 st.image(contour_image, caption="Contorno del Cráneo", width=500)
                 st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
                 st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
@@ -68,35 +74,30 @@ if uploaded_file:
         elif page == "Análisis del Tumor":
             st.title("🧠 Análisis del Tumor")
 
-            # 📌 Aplicar suavizado Gaussiano y detección de tumor
-            pixel_spacing = 0.035  # cm/píxel
-            blurred = cv2.GaussianBlur(image, (7, 7), 2)
-            _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
-            contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # 📌 Convertir imagen a RGB y redimensionar
+            if len(image.shape) == 2:
+                image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
 
-            min_area_threshold = 200
-            tumor_contour = max(contours, key=cv2.contourArea) if contours else None
+            image_resized = cv2.resize(image, (224, 224))  # Ajusta según el tamaño del modelo
+            image_array = np.expand_dims(image_resized, axis=0)  # Agregar batch
+            image_array = image_array / 255.0  # Normalizar
 
-            if tumor_contour is not None and cv2.contourArea(tumor_contour) > min_area_threshold:
-                area_pixels = cv2.contourArea(tumor_contour)
-                area_cm2 = area_pixels * (pixel_spacing ** 2)
+            # 📌 Realizar predicción
+            prediction = model.predict(image_array)
+            probability = prediction[0][0]  # Asumimos que el modelo devuelve una probabilidad
 
-                M = cv2.moments(tumor_contour)
-                cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else 0
-                cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else 0
+            # 📌 Diagnóstico basado en el umbral
+            threshold = 0.5
+            tumor_detected = probability >= threshold
+            diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
-                tumor_contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                cv2.drawContours(tumor_contour_image, [tumor_contour], -1, (0, 255, 0), 2)
-                cv2.circle(tumor_contour_image, (cx, cy), 5, (0, 0, 255), -1)
+            # 📌 Mostrar resultados en la interfaz
+            st.image(image_resized, caption="Imagen Procesada para Análisis", width=500)
+            st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
+            st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
 
-                st.image(tumor_contour_image, caption="Detección de Tumor", width=500)
-                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
-                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
-
-                if area_cm2 > 10:
-                    st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
-                else:
-                    st.success("✅ **El tumor es de tamaño pequeño o moderado.**")
-
+            # 📌 Alertas de riesgo
+            if tumor_detected:
+                st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
             else:
-                st.error("❌ No se detectaron tumores en la imagen.")
+                st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
