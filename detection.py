@@ -84,7 +84,7 @@ if uploaded_file:
 
                 # 📌 Mostrar segmentación
                 st.subheader("🖼️ Segmentación del Tumor y Heatmap")
-                fig = plt.figure(figsize=(300 / 96, 150 / 96), dpi=96)
+                fig, axs = plt.subplots(1, 2, figsize=(300 / 96, 150 / 96), dpi=96)
                 axs[0].imshow(image, cmap="gray")
                 axs[0].set_title("Imagen Original")
                 axs[0].axis("off")
