@@ -15,28 +15,28 @@ st.write(f"📌 **Versión de Python en Streamlit Cloud:** `{sys.version}`")
 
 # =================== CARGAR MODELO ===================
 st.write("📥 **Cargando modelo...**")
-model_path = "2025-19-02_VGG_model.h5"
+model_path = "BrainTumorDetection.h5"
 
 try:
     model = load_model(model_path, compile=False)
     st.success("✅ Modelo cargado exitosamente")
 except Exception as e:
     st.error(f"❌ Error al cargar el modelo: {str(e)}")
+    st.stop()
 
 # =================== MOSTRAR RESUMEN DEL MODELO ===================
-if "model" in locals():
-    with st.expander("📜 Ver detalles del modelo"):
-        buffer = io.StringIO()
-        model.summary(print_fn=lambda x: buffer.write(x + "\n"))
-        summary_str = buffer.getvalue()
-        buffer.close()
-        st.code(summary_str, language="text")
+with st.expander("📜 Ver detalles del modelo"):
+    buffer = io.StringIO()
+    model.summary(print_fn=lambda x: buffer.write(x + "\n"))
+    summary_str = buffer.getvalue()
+    buffer.close()
+    st.code(summary_str, language="text")
 
 # =================== SUBIR UNA IMAGEN ===================
 uploaded_file = st.file_uploader("📸 **Sube una imagen médica (JPG, PNG)**", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    # Leer la imagen y convertirla a un array
+    # Leer la imagen y convertirla en un array
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -45,14 +45,18 @@ if uploaded_file:
         st.image(image, caption="Imagen original", width=400)
 
         # Preprocesar la imagen para el modelo
-        image_resized = cv2.resize(image, (224, 224))  # Cambiar tamaño según el modelo
+        image_resized = cv2.resize(image, (224, 224))  # Tamaño compatible con VGG16
         image_array = np.expand_dims(image_resized, axis=0)  # Agregar batch
-        image_array = image_array / 255.0  # Normalizar
+        image_array = image_array / 255.0  # Normalización
 
         # =================== REALIZAR PREDICCIÓN ===================
         st.write("🔍 **Analizando la imagen...**")
         prediction = model.predict(image_array)
-        probability = prediction[0][0]  # Suponiendo que el modelo devuelve una probabilidad
+        
+        if prediction.shape[-1] == 1:
+            probability = prediction[0][0]  # Para modelos binarios
+        else:
+            probability = np.argmax(prediction)  # Para modelos de clasificación multiclase
 
         # Diagnóstico basado en umbral
         threshold = 0.5
@@ -68,6 +72,3 @@ if uploaded_file:
             st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
         else:
             st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
-
-       
-
