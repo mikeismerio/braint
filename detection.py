@@ -57,5 +57,20 @@ if uploaded_file:
         st.write("🔍 **Analizando la imagen...**")
         prediction = model.predict(image_array)
 
-        # Mostrar resultado en bruto sin aplicar ningún cambio
-        st.subheader(f"📌 **Salida del modelo:** `{prediction}`")
+        # Obtener probabilidad del modelo
+        probability = prediction[0][0]  # Extraer el valor de la predicción
+
+        # Definir el umbral del 70% (0.7)
+        threshold = 0.7
+        tumor_detected = probability >= threshold
+        diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
+
+        # Mostrar resultados interpretados
+        st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
+        st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
+
+        # 🔹 Mensajes de alerta según el diagnóstico
+        if tumor_detected:
+            st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
+        else:
+            st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
