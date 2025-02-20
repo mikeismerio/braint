@@ -5,10 +5,10 @@ import numpy as np
 from PIL import Image
 import io
 
-# Cargar el modelo
+# Cargar el modelo sin compilar para evitar errores con el optimizador
 MODEL_PATH = "2025-19-02_VGG_model.h5"
 try:
-    model = load_model(MODEL_PATH)
+    model = load_model(MODEL_PATH, compile=False)  # Desactiva la compilación
     st.success("✅ Modelo cargado exitosamente")
 except Exception as e:
     st.error(f"❌ Error al cargar el modelo: {e}")
