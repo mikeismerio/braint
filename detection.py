@@ -86,7 +86,7 @@ if uploaded_file:
 
                 # 📌 Mostrar segmentación
 
-                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=200)
+                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=500)
 
                 # 📌 Mostrar métricas del tumor
                 st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
