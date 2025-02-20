@@ -54,7 +54,9 @@ if uploaded_file:
         st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
 
        
-       # =================== SEGMENTACIÓN DEL TUMOR ===================
+
+
+# =================== SEGMENTACIÓN DEL TUMOR ===================
         if tumor_detected:
             st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
             pixel_spacing = 0.04  # cm/píxel
@@ -85,7 +87,7 @@ if uploaded_file:
 
                 # 📌 Mostrar segmentación
                 
-                fig, axs = plt.subplots(1, 2, figsize=(300 / 96, 150 / 96), dpi=96)
+                fig, axs = plt.subplots(1, 2, figsize=(150 / 96, 75 / 96), dpi=96)
                 ax1 = fig.add_subplot(1, 2, 1)
                 ax1.imshow(image, cmap="gray")
                 
