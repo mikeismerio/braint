@@ -53,7 +53,8 @@ if uploaded_file:
         st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
         st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
 
-        # =================== SEGMENTACIÓN DEL TUMOR ===================
+       
+       # =================== SEGMENTACIÓN DEL TUMOR ===================
         if tumor_detected:
             st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
             pixel_spacing = 0.04  # cm/píxel
@@ -83,20 +84,22 @@ if uploaded_file:
                 heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
 
                 # 📌 Mostrar segmentación
-                st.subheader("🖼️ Segmentación del Tumor y Heatmap")
+                
                 fig, axs = plt.subplots(1, 2, figsize=(300 / 96, 150 / 96), dpi=96)
-                axs[0].imshow(image, cmap="gray")
-                axs[0].set_title("Imagen Original")
-                axs[0].axis("off")
-                axs[1].imshow(cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB))
-                axs[1].set_title("Segmentación del Tumor con Heatmap")
-                axs[1].axis("off")
+                ax1 = fig.add_subplot(1, 2, 1)
+                ax1.imshow(image, cmap="gray")
+                
+                ax1.axis("off")
+                ax2 = fig.add_subplot(1, 2, 2)
+                ax2.imshow(cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB))
+                
+                ax2.axis("off")
                 st.pyplot(fig)
 
                 # 📌 Mostrar resultados finales
-                st.subheader("📊 Resultados del Análisis")
-                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
-                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
+                
+                
+                
                 
                 if area_cm2 > 10:
                     st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
