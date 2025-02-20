@@ -1,31 +1,45 @@
 import streamlit as st
+import tensorflow as tf
 from tensorflow.keras.models import load_model
-import sys
+import numpy as np
+from PIL import Image
 import io
 
-st.title("🧠 Detección de Tumores Cerebrales")
-st.write(f"📌 **Versión de Python en Streamlit Cloud:** `{sys.version}`")
-
-# 📌 Ruta del modelo
-model_path = "2025-19-02_VGG_model.h5"  # Asegúrate de que el archivo está en la misma carpeta
-
-# 📌 Cargar el modelo
-st.write("📥 **Cargando modelo...**")
+# Cargar el modelo
+MODEL_PATH = "2025-19-02_VGG_model.h5"
 try:
-    model = load_model(model_path)
+    model = load_model(MODEL_PATH)
     st.success("✅ Modelo cargado exitosamente")
 except Exception as e:
-    st.error(f"❌ Error al cargar el modelo: {str(e)}")
+    st.error(f"❌ Error al cargar el modelo: {e}")
+    st.stop()
 
-# 📌 Mostrar el resumen del modelo en Streamlit
-if "model" in locals():
-    st.subheader("📜 Resumen del Modelo")
+# Configurar la interfaz de usuario
+st.title("🧠 Detección de Tumores Cerebrales con VGG")
+st.write("Sube una imagen de resonancia magnética para predecir si hay un tumor cerebral.")
+
+# Función para preprocesar la imagen
+def preprocess_image(image):
+    img = image.resize((224, 224))  # Ajustar al tamaño de entrada del modelo
+    img_array = np.array(img) / 255.0  # Normalización
+    img_array = np.expand_dims(img_array, axis=0)  # Expandir dimensiones para el modelo
+    return img_array
+
+# Subir imagen
+tumor_classes = ['No Tumor', 'Tumor']
+uploaded_file = st.file_uploader("📥 Sube una imagen de MRI", type=["jpg", "png", "jpeg"])
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="🖼️ Imagen cargada", use_column_width=True)
     
-    # Capturar el resumen en un buffer de texto
-    buffer = io.StringIO()
-    model.summary(print_fn=lambda x: buffer.write(x + "\n"))
-    summary_str = buffer.getvalue()
-    buffer.close()
-
-    # Mostrarlo en Streamlit con formato de código
-    st.code(summary_str, language="text")
+    # Procesar imagen y hacer predicción
+    img_array = preprocess_image(image)
+    prediction = model.predict(img_array)
+    predicted_class = np.argmax(prediction)
+    confidence = np.max(prediction) * 100
+    
+    # Mostrar resultado
+    st.subheader("🩺 Diagnóstico:")
+    st.write(f"Predicción: **{tumor_classes[predicted_class]}**")
+    st.write(f"Confianza: **{confidence:.2f}%**")
