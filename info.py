@@ -38,14 +38,21 @@ st.write(f"**Parámetros entrenables:** `{trainable_params:,}`")
 st.write(f"**Parámetros no entrenables:** `{non_trainable_params:,}`")
 st.write(f"**Total de parámetros:** `{total_params:,}`")
 
+
 # =================== DETALLES DE CAPAS ===================
 st.header("🔍 Detalle de las Capas del Modelo")
+
 layers_data = []
 for layer in model.layers:
+    try:
+        output_shape = str(layer.output_shape)
+    except AttributeError:
+        output_shape = "No disponible"
+
     layers_data.append({
         "Nombre de la Capa": layer.name,
         "Tipo": layer.__class__.__name__,
-        "Salida": str(layer.output_shape),
+        "Salida": output_shape,
         "Parámetros": layer.count_params()
     })
 
