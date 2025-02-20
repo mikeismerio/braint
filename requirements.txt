@@ -2,4 +2,4 @@ streamlit
 opencv-python-headless
 numpy
 matplotlib
-tensorflow
+tensorflow==2.11.0
