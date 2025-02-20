@@ -7,7 +7,7 @@ st.title("🧠 Detección de Tumores Cerebrales")
 st.write(f"📌 **Versión de Python en Streamlit Cloud:** `{sys.version}`")
 
 # 📌 Ruta del modelo
-model_path = "BrainTumorDetection.h5"  # Asegúrate de que el archivo está en la misma carpeta
+model_path = "2025-19-02_VGG_model.h5"  # Asegúrate de que el archivo está en la misma carpeta
 
 # 📌 Cargar el modelo
 st.write("📥 **Cargando modelo...**")
