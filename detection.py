@@ -69,27 +69,5 @@ if uploaded_file:
         else:
             st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
 
-        # =================== VISUALIZAR ACTIVACIONES ===================
-        st.subheader("🔬 Visualización de Activaciones")
-
-        # Elegir capa convolucional para visualizar
-        layer_outputs = [layer.output for layer in model.layers if 'conv' in layer.name]
-        activation_model = tf.keras.models.Model(inputs=model.input, outputs=layer_outputs)
-        activations = activation_model.predict(image_array)
-
-        # Mostrar activaciones de las primeras capas
-        num_layers = len(activations)
-        num_visual_layers = min(3, num_layers)  # Limitar a 3 capas para evitar sobrecarga
-
-        for i in range(num_visual_layers):
-            feature_map = activations[i][0]  # Primera imagen del batch
-            num_features = feature_map.shape[-1]
-
-            st.write(f"📡 **Activaciones en Capa {i + 1}: `{model.layers[i].name}`**")
-            
-            fig, axes = plt.subplots(1, min(6, num_features), figsize=(15, 5))
-            for j in range(min(6, num_features)):  # Mostrar máximo 6 filtros
-                axes[j].imshow(feature_map[:, :, j], cmap="viridis")
-                axes[j].axis("off")
-            st.pyplot(fig)
+       
 
