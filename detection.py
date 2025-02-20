@@ -86,23 +86,9 @@ if uploaded_file:
                 heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
 
                 # 📌 Mostrar segmentación
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=200)
+                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=600)
 
                 # 📌 Mostrar resultados finales
-                
-                
-                
-                
                 if area_cm2 > 10:
                     st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
                 else:
