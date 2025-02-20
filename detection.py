@@ -5,11 +5,12 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 import sys
 import io
+import matplotlib.pyplot as plt
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
-st.set_page_config(layout="wide", page_title="🧠 Detección de Tumores Cerebrales")
+st.set_page_config(layout="wide", page_title="🧠 Detección y Segmentación de Tumores")
 
-st.title("🧠 Detección de Tumores Cerebrales con CNN")
+st.title("🧠 Detección y Segmentación de Tumores Cerebrales con CNN")
 st.write(f"📌 **Versión de Python en Streamlit Cloud:** `{sys.version}`")
 
 # =================== CARGAR MODELO ===================
@@ -23,54 +24,85 @@ except Exception as e:
     st.error(f"❌ Error al cargar el modelo: {str(e)}")
     st.stop()
 
-# =================== MOSTRAR RESUMEN DEL MODELO ===================
-with st.expander("📜 Ver detalles del modelo"):
-    buffer = io.StringIO()
-    model.summary(print_fn=lambda x: buffer.write(x + "\n"))
-    summary_str = buffer.getvalue()
-    buffer.close()
-    st.code(summary_str, language="text")
-
 # =================== SUBIR UNA IMAGEN ===================
 uploaded_file = st.file_uploader("📸 **Sube una imagen médica (JPG, PNG)**", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     # Leer la imagen y convertirla en array
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
 
     if image is not None:
         # Mostrar imagen original
         st.image(image, caption="Imagen original", width=400)
 
-        # 🔹 Asegurar que la imagen tenga tamaño correcto para VGG16 (224x224)
-        image_resized = cv2.resize(image, (224, 224))  
-
-        # 🔹 Asegurar que la imagen tenga 3 canales (RGB)
-        if image_resized.shape[-1] != 3:
-            image_resized = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
-
-        # 🔹 Convertir la imagen a formato esperado por el modelo
-        image_array = np.expand_dims(image_resized, axis=0)  # Agregar dimensión de batch
+        # 🔹 Preprocesamiento para el modelo
+        image_resized = cv2.resize(image, (224, 224))
+        image_rgb = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
+        image_array = np.expand_dims(image_rgb, axis=0)
 
         # =================== REALIZAR PREDICCIÓN ===================
         st.write("🔍 **Analizando la imagen...**")
         prediction = model.predict(image_array)
-
-        # Obtener probabilidad del modelo
-        probability = prediction[0][0]  # Extraer el valor de la predicción
-
-        # Definir el umbral del 70% (0.7)
+        probability = prediction[0][0]
         threshold = 0.7
         tumor_detected = probability >= threshold
         diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
-        # Mostrar resultados interpretados
+        # Mostrar resultados de la CNN
         st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
         st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
 
-        # 🔹 Mensajes de alerta según el diagnóstico
+        # =================== SEGMENTACIÓN DEL TUMOR ===================
         if tumor_detected:
-            st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
+            st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
+            pixel_spacing = 0.04  # cm/píxel
+            blurred = cv2.GaussianBlur(image, (7, 7), 2)
+            _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
+            contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            min_area_threshold = 200
+            tumor_contour = max(contours, key=cv2.contourArea) if contours else None
+
+            if tumor_contour is not None and cv2.contourArea(tumor_contour) > min_area_threshold:
+                area_pixels = cv2.contourArea(tumor_contour)
+                area_cm2 = area_pixels * (pixel_spacing ** 2)
+
+                M = cv2.moments(tumor_contour)
+                cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else 0
+                cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else 0
+
+                tumor_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                cv2.drawContours(tumor_image, [tumor_contour], -1, (0, 255, 0), 2)
+                cv2.circle(tumor_image, (cx, cy), 5, (0, 0, 255), -1)
+
+                mask = np.zeros_like(image, dtype=np.uint8)
+                cv2.drawContours(mask, [tumor_contour], -1, 255, thickness=cv2.FILLED)
+                tumor_region = cv2.bitwise_and(image, image, mask=mask)
+                heatmap = cv2.applyColorMap(tumor_region, cv2.COLORMAP_JET)
+                heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
+
+                # 📌 Mostrar segmentación
+                st.subheader("🖼️ Segmentación del Tumor y Heatmap")
+                fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+                axs[0].imshow(image, cmap="gray")
+                axs[0].set_title("Imagen Original")
+                axs[0].axis("off")
+                axs[1].imshow(cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB))
+                axs[1].set_title("Segmentación del Tumor con Heatmap")
+                axs[1].axis("off")
+                st.pyplot(fig)
+
+                # 📌 Mostrar resultados finales
+                st.subheader("📊 Resultados del Análisis")
+                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
+                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
+                
+                if area_cm2 > 10:
+                    st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
+                else:
+                    st.success("✅ **El tumor es de tamaño pequeño o moderado.**")
+            else:
+                st.error("❌ No se detectaron tumores en la imagen.")
         else:
             st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
