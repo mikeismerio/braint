@@ -43,8 +43,15 @@ if uploaded_file:
         # Mostrar imagen original
         st.image(image, caption="Imagen original", width=400)
 
-        # Convertir imagen a formato esperado por el modelo sin modificarla
-        image_array = np.expand_dims(image, axis=0)
+        # 🔹 Asegurar que la imagen tenga tamaño correcto para VGG16 (224x224)
+        image_resized = cv2.resize(image, (224, 224))  
+
+        # 🔹 Asegurar que la imagen tenga 3 canales (RGB)
+        if image_resized.shape[-1] != 3:
+            image_resized = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
+
+        # 🔹 Convertir la imagen a formato esperado por el modelo
+        image_array = np.expand_dims(image_resized, axis=0)  # Agregar dimensión de batch
 
         # =================== REALIZAR PREDICCIÓN ===================
         st.write("🔍 **Analizando la imagen...**")
