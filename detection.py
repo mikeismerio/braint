@@ -56,7 +56,7 @@ if uploaded_file:
        
 
 
-# =================== SEGMENTACIÓN DEL TUMOR ===================
+        # =================== SEGMENTACIÓN DEL TUMOR ===================
         if tumor_detected:
             st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
             pixel_spacing = 0.04  # cm/píxel
@@ -89,13 +89,13 @@ if uploaded_file:
                 
                 
                 
-                ax1.imshow(image, cmap="gray")
                 
-                ax1.axis("off")
                 
-                ax2.imshow(cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB))
                 
-                ax2.axis("off")
+                
+                
+                
+                
                 st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=200)
 
                 # 📌 Mostrar resultados finales
