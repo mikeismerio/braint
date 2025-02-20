@@ -4,10 +4,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
-import sys
 
-st.title("📌 Versión de Python en Streamlit Cloud")
-st.write(f"Versión de Python: {sys.version}")
 
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
