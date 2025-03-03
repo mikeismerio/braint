@@ -1,12 +1,9 @@
-import tensorflow as tf
-from tensorflow.keras.models import load_model
+import os
 
-# Ruta del archivo del modelo
 model_path = "2025-19-02_VGG_model.h5"
 
-# Cargar el modelo sin compilar
-model = load_model(model_path, compile=False)
-
-# Resumen del modelo
-print("Resumen del modelo:")
-model.summary()
+# Verificar si el archivo existe
+if os.path.exists(model_path):
+    print(f"El archivo {model_path} existe y tiene un tamaño de {os.path.getsize(model_path) / (1024*1024):.2f} MB")
+else:
+    print("El archivo no existe o está corrupto.")
