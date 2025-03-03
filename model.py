@@ -6,7 +6,7 @@ from PIL import Image
 import io
 
 # Cargar el modelo sin compilar para evitar errores con el optimizador
-MODEL_PATH = "brain-tumor-detection-acc-96-4-cnn.h5"
+MODEL_PATH = "2025-19-02_VGG_model.h5"
 try:
     model = load_model(MODEL_PATH, compile=False)  # Desactiva la compilación
     st.success("✅ Modelo cargado exitosamente")
