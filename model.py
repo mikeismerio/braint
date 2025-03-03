@@ -8,7 +8,7 @@ from PIL import Image
 import tempfile
 
 # Cargar el modelo entrenado
-model = load_model("2025-19-02_VGG_model.h5")
+model = load_model("2025-19-02_VGG_model.h5", compile=False)
 
 def preprocess_image(image):
     """
