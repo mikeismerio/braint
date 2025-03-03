@@ -1,17 +1,21 @@
 import streamlit as st
 import tensorflow as tf
 from tensorflow.keras.models import load_model
+from io import BytesIO
 
 # Título de la aplicación
 st.title("Cargar y visualizar un modelo de TensorFlow")
 
-# Cargar el modelo
-model_path = st.text_input("Introduce la ruta del modelo (.h5):", "2025-19-02_VGG_model.h5")
+# Subir archivo de modelo
+uploaded_file = st.file_uploader("Selecciona un archivo de modelo (.h5)", type=["h5"])
 
-if st.button("Cargar modelo"):
+if uploaded_file is not None:
     try:
-        # Cargar el modelo
-        model = load_model(model_path)
+        # Convertir el archivo subido a un objeto BytesIO
+        model_bytes = BytesIO(uploaded_file.read())
+
+        # Cargar el modelo desde el archivo subido
+        model = load_model(model_bytes)
         st.success("¡Modelo cargado correctamente!")
 
         # Mostrar resumen del modelo
@@ -32,3 +36,5 @@ if st.button("Cargar modelo"):
 
     except Exception as e:
         st.error(f"Error al cargar el modelo: {e}")
+else:
+    st.warning("Por favor, sube un archivo de modelo (.h5).")
