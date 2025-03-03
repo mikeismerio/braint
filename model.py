@@ -1,7 +1,8 @@
 import streamlit as st
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from io import BytesIO
+import tempfile
+import os
 
 # Título de la aplicación
 st.title("Cargar y visualizar un modelo de TensorFlow")
@@ -11,11 +12,13 @@ uploaded_file = st.file_uploader("Selecciona un archivo de modelo (.h5)", type=[
 
 if uploaded_file is not None:
     try:
-        # Convertir el archivo subido a un objeto BytesIO
-        model_bytes = BytesIO(uploaded_file.read())
+        # Guardar el archivo subido en un archivo temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            tmp_file_path = tmp_file.name
 
-        # Cargar el modelo desde el archivo subido
-        model = load_model(model_bytes)
+        # Cargar el modelo desde el archivo temporal
+        model = load_model(tmp_file_path)
         st.success("¡Modelo cargado correctamente!")
 
         # Mostrar resumen del modelo
@@ -33,6 +36,9 @@ if uploaded_file is not None:
             st.write(f"**Forma de salida:** {layer.output_shape}")
             st.write(f"**Número de parámetros:** {layer.count_params()}")
             st.write("------")
+
+        # Eliminar el archivo temporal después de usarlo
+        os.remove(tmp_file_path)
 
     except Exception as e:
         st.error(f"Error al cargar el modelo: {e}")
