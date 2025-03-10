@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 st.sidebar.title("📌 Configuración")
 
-# Cargar el modelo (el cerebro digital ya está en marcha)
+# Cargar el modelo (tu red neuronal entrenada)
 model_path = "2025-19-02_VGG_model.h5"
 model = load_model(model_path, compile=False)
 
@@ -17,12 +17,12 @@ uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", 
 
 def analyze_cranio(image):
     st.title("📏 Análisis del Cráneo")
-    # Verificar si la imagen es a color o ya es en escala de grises
+    # Verificamos canales de la imagen
     if len(image.shape) == 3 and image.shape[2] == 3:
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
         gray_image = image.copy()
-    
+
     blurred = cv2.GaussianBlur(gray_image, (7, 7), 2)
     edges = cv2.Canny(blurred, 30, 100)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
@@ -47,7 +47,6 @@ def analyze_cranio(image):
             "Braquicéfalo (cabeza ancha)"
         )
 
-        # Convertir el gris a BGR para mostrar (¡sin vueltas!)
         contour_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2BGR)
         cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
         cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
@@ -61,16 +60,67 @@ def analyze_cranio(image):
     else:
         st.error("No se encontró un contorno significativo del cráneo. ¿Seguro que la imagen no es una selfie sin filtro?")
 
+def segment_tumor_largest_bright_region(image_color):
+    """
+    Segmenta la región más brillante (o la más oscura si invertimos)
+    en la imagen, asumiendo que el tumor es la mayor masa destacada.
+    Devuelve la máscara final con la región del tumor.
+    """
+    # Convertir a escala de grises
+    gray = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
+
+    # Ecualización de histograma para resaltar regiones brillantes
+    gray_eq = cv2.equalizeHist(gray)
+
+    # Suavizado
+    blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
+
+    # Umbral con Otsu (THRESH_BINARY)
+    _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Encontrar contornos para ver si el "fondo" es lo más grande
+    conts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    largest_area = 0
+    for c in conts:
+        area = cv2.contourArea(c)
+        if area > largest_area:
+            largest_area = area
+
+    # Si la región más grande es mayor a la mitad de la imagen, invertimos
+    img_area = gray.shape[0] * gray.shape[1]
+    if largest_area > (img_area / 2):
+        # Probablemente el fondo se tomó como "blanco"
+        mask = cv2.bitwise_not(mask)
+
+    # Operaciones morfológicas para limpiar agujeros/ruido
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    # Reevaluar contornos para dibujar solo el más grande
+    conts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not conts:
+        return np.zeros_like(mask)
+
+    # Seleccionar el contorno más grande
+    largest_contour = max(conts, key=cv2.contourArea)
+
+    # Crear una nueva máscara solo con el contorno más grande
+    final_mask = np.zeros_like(mask)
+    cv2.drawContours(final_mask, [largest_contour], -1, 255, -1)
+
+    return final_mask
+
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
-    # Aseguramos que la imagen tenga 3 canales para una buena visualización
+    # Aseguramos que la imagen tenga 3 canales para visualización
     if len(image.shape) == 2:
         image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     else:
         image_color = image.copy()
     image_rgb = cv2.cvtColor(image_color, cv2.COLOR_BGR2RGB)
 
-    # Preprocesamiento para el modelo: redimensionar y normalizar
+    # Preprocesamiento para el modelo (redimensionar y normalizar)
     image_resized = cv2.resize(image_rgb, (224, 224))
     image_array = np.expand_dims(image_resized, axis=0) / 255.0
     prediction = model.predict(image_array)
@@ -78,44 +128,37 @@ def analyze_tumor(image, model):
     tumor_detected = probability >= 0.5
     diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
-    # Segmentación: suavizado y prueba de umbralización normal e invertida
-    gray_image = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
-    blurred_gray = cv2.GaussianBlur(gray_image, (5, 5), 0)
-    ret, tumor_mask = cv2.threshold(blurred_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # >>> Nueva función: segmentar la región más brillante (o invertida) <<<
+    tumor_mask = segment_tumor_largest_bright_region(image_color)
+
+    # Hallar contornos en la máscara final
     contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Si no se detectan contornos, probar la umbralización invertida
-    if not contours:
-        ret, tumor_mask = cv2.threshold(blurred_gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Refinar la máscara con operaciones morfológicas
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    tumor_mask = cv2.morphologyEx(tumor_mask, cv2.MORPH_OPEN, kernel, iterations=1)
-    tumor_mask = cv2.morphologyEx(tumor_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
-    # Crear heatmap a partir de la máscara segmentada
+    # Crear heatmap de la máscara
     heatmap = cv2.applyColorMap(tumor_mask, cv2.COLORMAP_JET)
-
-    # Dibujar el contorno sobre el heatmap
     heatmap_with_contour = heatmap.copy()
+
+    # Dibujar el contorno (en verde) sobre el heatmap
     if contours:
-        cv2.drawContours(heatmap_with_contour, contours, -1, (0, 0, 255), 2)
+        cv2.drawContours(heatmap_with_contour, contours, -1, (0, 255, 0), 2)
     else:
         st.warning("No se detectó contorno en la segmentación del tumor.")
 
-    # Calcular área y centroide del tumor
+    # Calcular área y centroide
     tumor_area_px = sum(cv2.contourArea(c) for c in contours)
-    pixel_spacing = 0.035  # Ajusta según la imagen
+    pixel_spacing = 0.035  # Ajusta según la resolución real de la imagen
     area_cm2 = tumor_area_px * (pixel_spacing ** 2)
+
     if contours:
-        M = cv2.moments(contours[0])
+        # Tomamos el contorno más grande para centroide
+        largest_contour = max(contours, key=cv2.contourArea)
+        M = cv2.moments(largest_contour)
         cx = int(M['m10'] / M['m00']) if M['m00'] != 0 else 0
         cy = int(M['m01'] / M['m00']) if M['m00'] != 0 else 0
     else:
         cx, cy = 0, 0
 
-    # Superponer el heatmap con contornos a la imagen original
+    # Superponer heatmap al 30% sobre la imagen original
     overlay = cv2.addWeighted(image_rgb, 0.7, cv2.cvtColor(heatmap_with_contour, cv2.COLOR_BGR2RGB), 0.3, 0)
 
     st.image([image_rgb, overlay], width=400, caption=["Imagen Original", "Heatmap con contorno del Tumor"])
