@@ -3,126 +3,74 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-import matplotlib.pyplot as plt
-
-
+import sys
+import io
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
-st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
+st.set_page_config(layout="wide", page_title="🧠 Detección de Tumores Cerebrales")
 
-# 📌 Cargar el modelo de detección de tumores
+st.title("🧠 Detección de Tumores Cerebrales con CNN")
+st.write(f"📌 **Versión de Python en Streamlit Cloud:** `{sys.version}`")
+
+# =================== CARGAR MODELO ===================
+st.write("📥 **Cargando modelo...**")
 model_path = "2025-19-02_VGG_model.h5"
-model = load_model(model_path, compile=False)
 
-# 📌 Barra lateral para selección de imagen y navegación
-st.sidebar.title("📌 Configuración")
+try:
+    model = load_model(model_path, compile=False)
+    st.success("✅ Modelo cargado exitosamente")
+except Exception as e:
+    st.error(f"❌ Error al cargar el modelo: {str(e)}")
+    st.stop()
 
-# 📌 Opciones de navegación en la barra lateral (Análisis Craneal o Tumor)
-page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor"])
+# =================== MOSTRAR RESUMEN DEL MODELO ===================
+with st.expander("📜 Ver detalles del modelo"):
+    buffer = io.StringIO()
+    model.summary(print_fn=lambda x: buffer.write(x + "\n"))
+    summary_str = buffer.getvalue()
+    buffer.close()
+    st.code(summary_str, language="text")
 
-# ✅ Permitir al usuario subir una única imagen en la barra lateral
-uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
+# =================== SUBIR UNA IMAGEN ===================
+uploaded_file = st.file_uploader("📸 **Sube una imagen médica (JPG, PNG)**", type=["jpg", "jpeg", "png"])
 
-
-
-#--------------------------------------------------------------------------------------------------------------------------------
-#Agregar segmentacion y metricas del tumor
-
- # 📌 Mostrar segmentación
-                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=400)
-                # 📌 Mostrar métricas del tumor
-                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
-                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
-                # 📌 Mostrar resultados finales
-                if area_cm2 > 10:
-                    st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
-                else:
-                    st.success("✅ **El tumor es de tamaño pequeño o moderado.**")
-            else:
-                st.error("❌ No se detectaron tumores en la imagen.")
-        else:
-            st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
-#--------------------------------------------------------------------------------------------------------------------------------
-
-
-
-# 📌 Verificar si el usuario ha subido una imagen antes de continuar
 if uploaded_file:
-    # ✅ Leer la imagen en memoria
-    image_bytes = uploaded_file.read()
-    image_array = np.frombuffer(image_bytes, np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
+    # Leer la imagen y convertirla en array
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
     if image is not None:
-        # =================== PÁGINA 1: ANÁLISIS CRANEAL ===================
-        if page == "Análisis Craneal":
-            st.title("📏 Análisis del Cráneo")
+        # Mostrar imagen original
+        st.image(image, caption="Imagen original", width=400)
 
-            blurred = cv2.GaussianBlur(image, (7, 7), 2)
-            edges = cv2.Canny(blurred, 30, 100)
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            closed_edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
-            contours, _ = cv2.findContours(closed_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # 🔹 Asegurar que la imagen tenga tamaño correcto para VGG16 (224x224)
+        image_resized = cv2.resize(image, (224, 224))  
 
-            min_area_threshold = 5000
-            largest_contour = max(contours, key=cv2.contourArea) if contours else None
+        # 🔹 Asegurar que la imagen tenga 3 canales (RGB)
+        if image_resized.shape[-1] != 3:
+            image_resized = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
 
-            if largest_contour is not None and cv2.contourArea(largest_contour) > min_area_threshold:
-                hull = cv2.convexHull(largest_contour)
-                x, y, w, h = cv2.boundingRect(hull)
-                pixel_spacing = 0.035
+        # 🔹 Convertir la imagen a formato esperado por el modelo
+        image_array = np.expand_dims(image_resized, axis=0)  # Agregar dimensión de batch
 
-                diameter_transversal_cm = w * pixel_spacing
-                diameter_anteroposterior_cm = h * pixel_spacing
-                cephalic_index = (diameter_transversal_cm / diameter_anteroposterior_cm) * 100
+        # =================== REALIZAR PREDICCIÓN ===================
+        st.write("🔍 **Analizando la imagen...**")
+        prediction = model.predict(image_array)
 
-                skull_type = (
-                    "Dolicocéfalo (cabeza alargada)" if cephalic_index < 75 else
-                    "Mesocefálico (cabeza normal)" if 75 <= cephalic_index <= 80 else
-                    "Braquicéfalo (cabeza ancha)"
-                )
+        # Obtener probabilidad del modelo
+        probability = prediction[0][0]  # Extraer el valor de la predicción
 
-                # 📌 Dibujar contornos y líneas azules en la imagen procesada
-                contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
-                cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
-                cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)
+        # Definir el umbral del 70% (0.7)
+        threshold = 0.7
+        tumor_detected = probability >= threshold
+        diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
-                # 📌 Mostrar resultados
-                st.image(contour_image, caption="Contorno del Cráneo", width=500)
-                st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
-                st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
-                st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
-                st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
+        # Mostrar resultados interpretados
+        st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
+        st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
 
-        # =================== PÁGINA 2: ANÁLISIS DEL TUMOR ===================
-        elif page == "Análisis del Tumor":
-            st.title("🧠 Análisis del Tumor")
-
-            # 📌 Convertir imagen a RGB y redimensionar
-            if len(image.shape) == 2:
-                image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-
-            image_resized = cv2.resize(image, (224, 224))  # Ajusta según el tamaño del modelo
-            image_array = np.expand_dims(image_resized, axis=0)  # Agregar batch
-            image_array = image_array / 255.0  # Normalizar
-
-            # 📌 Realizar predicción
-            prediction = model.predict(image_array)
-            probability = prediction[0][0]  # Asumimos que el modelo devuelve una probabilidad
-
-            # 📌 Diagnóstico basado en el umbral
-            threshold = 0.5
-            tumor_detected = probability >= threshold
-            diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
-
-            # 📌 Mostrar resultados en la interfaz
-            st.image(image_resized, caption="Imagen Procesada para Análisis", width=500)
-            st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
-            st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
-
-            # 📌 Alertas de riesgo
-            if tumor_detected:
-                st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
-            else:
-                st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
+        # 🔹 Mensajes de alerta según el diagnóstico
+        if tumor_detected:
+            st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
+        else:
+            st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
