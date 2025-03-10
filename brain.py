@@ -25,7 +25,7 @@ except Exception as e:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Función para Análisis Craneal (mantiene la estructura de la versión anterior)
+# Función para Análisis Craneal (estructura anterior)
 def analyze_cranio(image):
     st.title("📏 Análisis del Cráneo")
     # Convertir a escala de grises si es una imagen a color
@@ -106,8 +106,14 @@ def analyze_tumor(image, model):
         st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
         pixel_spacing = 0.04  # cm/píxel (ajusta según la resolución)
         
+        # Para segmentar, primero convertir la imagen a escala de grises (si no lo está)
+        if len(image.shape) == 3:
+            gray_seg = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray_seg = image.copy()
+            
         # Segmentación: suavizado y umbral fijo
-        blurred = cv2.GaussianBlur(image, (7, 7), 2)
+        blurred = cv2.GaussianBlur(gray_seg, (7, 7), 2)
         _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
@@ -123,19 +129,19 @@ def analyze_tumor(image, model):
             cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else 0
             
             # Dibujar contornos y centroide sobre la imagen original (convertida a BGR)
-            tumor_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            tumor_image = cv2.cvtColor(gray_seg, cv2.COLOR_GRAY2BGR)
             cv2.drawContours(tumor_image, [tumor_contour], -1, (0, 255, 0), 2)
             cv2.circle(tumor_image, (cx, cy), 5, (0, 0, 255), -1)
             
             # Crear una máscara del tumor y generar heatmap
-            mask = np.zeros_like(image, dtype=np.uint8)
+            mask = np.zeros_like(gray_seg, dtype=np.uint8)
             cv2.drawContours(mask, [tumor_contour], -1, 255, thickness=cv2.FILLED)
-            tumor_region = cv2.bitwise_and(image, image, mask=mask)
+            tumor_region = cv2.bitwise_and(gray_seg, gray_seg, mask=mask)
             heatmap = cv2.applyColorMap(tumor_region, cv2.COLORMAP_JET)
             heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
             
-            st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=400,
-                     caption=["Imagen Original", "Segmentación del Tumor"])
+            st.image([gray_seg, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=400,
+                     caption=["Imagen Original (Grayscale)", "Segmentación del Tumor"])
             st.write(f"🧠 **Área del Tumor:** `{area_cm2:.2f} cm²`")
             st.write(f"📌 **Ubicación del Tumor (Centro):** `({cx}, {cy})` en píxeles")
             
