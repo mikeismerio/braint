@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(layout="wide", page_title="🧠 Detección y Segmentación de Tumores")
 
 st.title("🧠 Detección y Segmentación de Tumores Cerebrales")
-st.write(f"📌 **Versión de Python en Streamlit Cloud:** `{sys.version}`")
+st.write(f"📌 **Versión de Python en Streamlit Cloud:** {sys.version}")
 
 # =================== CARGAR MODELO ===================
 st.write("📥 **Cargando modelo 2025-19-02_VGG_model.h5...**")
@@ -28,23 +28,25 @@ except Exception as e:
 uploaded_file = st.file_uploader("📸 **Sube una imagen médica (JPG, PNG)**", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    try:
-        # Leer la imagen y convertirla en array
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
 
-        if image is None:
-            st.error("❌ No se pudo procesar la imagen. Asegúrate de subir un archivo válido.")
-            st.stop()
+    
+    # Leer la imagen y convertirla en array
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
 
+    if image is not None:
+
+        
         # Mostrar imagen original
         st.image(image, caption="Imagen original", width=400)
 
+        
         # 🔹 Preprocesamiento para el modelo
         image_resized = cv2.resize(image, (224, 224))
         image_rgb = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
         image_array = np.expand_dims(image_rgb, axis=0)
 
+        
         # =================== REALIZAR PREDICCIÓN ===================
         st.write("🔍 **Analizando la imagen...**")
         prediction = model.predict(image_array)
@@ -53,9 +55,13 @@ if uploaded_file:
         tumor_detected = probability >= threshold
         diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
+        
         # Mostrar resultados de la CNN
-        st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
-        st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
+        st.subheader(f"📌 **Diagnóstico del Modelo:** {diagnosis}")
+        st.write(f"📊 **Probabilidad de Tumor:** {probability:.2%}")
+
+       
+
 
         if tumor_detected:
             st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
@@ -85,13 +91,19 @@ if uploaded_file:
                 heatmap = cv2.applyColorMap(tumor_region, cv2.COLORMAP_JET)
                 heatmap = cv2.addWeighted(tumor_image, 0.6, heatmap, 0.4, 0)
 
+
+                
                 # 📌 Mostrar segmentación
                 st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=400)
 
-                # 📌 Mostrar métricas del tumor
-                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
-                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
 
+                
+                # 📌 Mostrar métricas del tumor
+                st.write(f"🧠 **Área del tumor:** {area_cm2:.2f} cm²")
+                st.write(f"📌 **Ubicación del tumor (Centro):** ({cx}, {cy}) en píxeles")
+
+
+                
                 # 📌 Mostrar resultados finales
                 if area_cm2 > 10:
                     st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
@@ -101,5 +113,3 @@ if uploaded_file:
                 st.error("❌ No se detectaron tumores en la imagen.")
         else:
             st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
-    except Exception as e:
-        st.error(f"❌ Ocurrió un error: {str(e)}")
