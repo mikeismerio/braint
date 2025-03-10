@@ -74,7 +74,7 @@ if uploaded_file:
         elif page == "Análisis del Tumor":
             st.title("🧠 Análisis del Tumor")
 
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image_resized = cv2.resize(image_rgb, (224, 224))
             image_array = np.expand_dims(image_resized, axis=0) / 255.0
 
