@@ -98,7 +98,7 @@ if uploaded_file:
             else:
                 cx, cy = 0, 0
 
-            st.image([image_rgb, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], caption=["Imagen Original", "Segmentación"], width=400)
+            st.image([image_rgb, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=400)
             st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
             st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
             st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
