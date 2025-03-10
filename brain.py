@@ -84,6 +84,8 @@ if uploaded_file:
             diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
             _, tumor_mask = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY)
+            heatmap = cv2.applyColorMap(tumor_mask, cv2.COLORMAP_JET)
+
             contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             tumor_area_px = sum(cv2.contourArea(c) for c in contours)
             pixel_spacing = 0.035
@@ -96,12 +98,7 @@ if uploaded_file:
             else:
                 cx, cy = 0, 0
 
-            overlay = image_rgb.copy()
-            cv2.drawContours(overlay, contours, -1, (0, 255, 0), 2)
-            cv2.circle(overlay, (cx, cy), 5, (0, 0, 255), -1)
-            blended = cv2.addWeighted(image_rgb, 0.7, overlay, 0.3, 0)
-
-            st.image([image_rgb, blended], caption=["Imagen Original", "Segmentación Mejorada"], width=400)
+            st.image([image_rgb, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], caption=["Imagen Original", "Segmentación"], width=400)
             st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
             st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
             st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
