@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 st.sidebar.title("📌 Configuración")
 
-# Cargar el modelo (tu red neuronal entrenada)
+# Cargar tu modelo entrenado (cualquiera que sea)
 model_path = "2025-19-02_VGG_model.h5"
 model = load_model(model_path, compile=False)
 
@@ -17,7 +17,7 @@ uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", 
 
 def analyze_cranio(image):
     st.title("📏 Análisis del Cráneo")
-    # Verificamos canales de la imagen
+    # Convertir a gris si es de 3 canales
     if len(image.shape) == 3 and image.shape[2] == 3:
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
@@ -47,6 +47,7 @@ def analyze_cranio(image):
             "Braquicéfalo (cabeza ancha)"
         )
 
+        # Convertir a BGR para dibujar contornos
         contour_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2BGR)
         cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
         cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
@@ -60,67 +61,72 @@ def analyze_cranio(image):
     else:
         st.error("No se encontró un contorno significativo del cráneo. ¿Seguro que la imagen no es una selfie sin filtro?")
 
-def segment_tumor_largest_bright_region(image_color):
+def watershed_tumor_segmentation(image_bgr):
     """
-    Segmenta la región más brillante (o la más oscura si invertimos)
-    en la imagen, asumiendo que el tumor es la mayor masa destacada.
-    Devuelve la máscara final con la región del tumor.
+    Segmenta el tumor usando Watershed:
+    1. Convertir a gris + CLAHE para mejorar contraste.
+    2. Umbral Otsu para primer plano.
+    3. Morfología para refinar.
+    4. Distance Transform para marcar foreground.
+    5. Watershed.
+    Devuelve la máscara final (región del tumor).
     """
-    # Convertir a escala de grises
-    gray = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
+    # 1) Convertir a gris + CLAHE (ecualización adaptativa)
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    gray_eq = clahe.apply(gray)
 
-    # Ecualización de histograma para resaltar regiones brillantes
-    gray_eq = cv2.equalizeHist(gray)
+    # 2) Suavizado y umbral Otsu
+    blur = cv2.GaussianBlur(gray_eq, (5, 5), 0)
+    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    # Suavizado
-    blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
-
-    # Umbral con Otsu (THRESH_BINARY)
-    _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    # Encontrar contornos para ver si el "fondo" es lo más grande
-    conts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    largest_area = 0
-    for c in conts:
-        area = cv2.contourArea(c)
-        if area > largest_area:
-            largest_area = area
-
-    # Si la región más grande es mayor a la mitad de la imagen, invertimos
-    img_area = gray.shape[0] * gray.shape[1]
-    if largest_area > (img_area / 2):
-        # Probablemente el fondo se tomó como "blanco"
-        mask = cv2.bitwise_not(mask)
-
-    # Operaciones morfológicas para limpiar agujeros/ruido
+    # 3) Morfología para eliminar ruido y cerrar huecos
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+    # Fondo seguro (sure background)
+    sure_bg = cv2.dilate(opening, kernel, iterations=3)
 
-    # Reevaluar contornos para dibujar solo el más grande
-    conts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not conts:
-        return np.zeros_like(mask)
+    # 4) Distance Transform para foreground
+    dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
+    # Ajusta el factor 0.7 según tu imagen
+    _, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+    sure_fg = np.uint8(sure_fg)
+    unknown = cv2.subtract(sure_bg, sure_fg)
 
-    # Seleccionar el contorno más grande
-    largest_contour = max(conts, key=cv2.contourArea)
+    # 5) Watershed
+    # Etiquetas para cada región
+    _, markers = cv2.connectedComponents(sure_fg)
+    markers = markers + 1
+    markers[unknown == 255] = 0
 
-    # Crear una nueva máscara solo con el contorno más grande
-    final_mask = np.zeros_like(mask)
-    cv2.drawContours(final_mask, [largest_contour], -1, 255, -1)
+    # Watershed sobre la imagen original BGR
+    markers = cv2.watershed(image_bgr, markers)
 
-    return final_mask
+    # Cualquier píxel marcado como -1 es frontera
+    # Creamos máscara final: marcamos como tumor todo lo que no sea fondo
+    # OJO: Dependiendo de la anatomía, es posible que requieras filtrar áreas muy pequeñas o muy grandes
+    mask = np.zeros_like(gray, dtype=np.uint8)
+    # Asigna 255 a todo lo que sea mayor que 1 (1 es el label del fondo)
+    mask[markers > 1] = 255
+
+    # (Opcional) Podrías filtrar áreas muy pequeñas
+    # conts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # for c in conts:
+    #     if cv2.contourArea(c) < 500:  # por ejemplo
+    #         cv2.drawContours(mask, [c], -1, 0, -1)
+
+    return mask
 
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
-    # Aseguramos que la imagen tenga 3 canales para visualización
+    # Convertir la imagen a color si viene en 1 canal
     if len(image.shape) == 2:
-        image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     else:
-        image_color = image.copy()
-    image_rgb = cv2.cvtColor(image_color, cv2.COLOR_BGR2RGB)
+        image_bgr = image.copy()
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
-    # Preprocesamiento para el modelo (redimensionar y normalizar)
+    # Inferencia con tu modelo de clasificación
     image_resized = cv2.resize(image_rgb, (224, 224))
     image_array = np.expand_dims(image_resized, axis=0) / 255.0
     prediction = model.predict(image_array)
@@ -128,17 +134,17 @@ def analyze_tumor(image, model):
     tumor_detected = probability >= 0.5
     diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
-    # >>> Nueva función: segmentar la región más brillante (o invertida) <<<
-    tumor_mask = segment_tumor_largest_bright_region(image_color)
+    # >>> Segmentar el tumor con Watershed <<<
+    tumor_mask = watershed_tumor_segmentation(image_bgr)
 
-    # Hallar contornos en la máscara final
+    # Buscar contornos en la máscara final
     contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Crear heatmap de la máscara
+    # Crear un heatmap de la máscara
     heatmap = cv2.applyColorMap(tumor_mask, cv2.COLORMAP_JET)
     heatmap_with_contour = heatmap.copy()
 
-    # Dibujar el contorno (en verde) sobre el heatmap
+    # Dibujar contornos en verde
     if contours:
         cv2.drawContours(heatmap_with_contour, contours, -1, (0, 255, 0), 2)
     else:
@@ -146,22 +152,22 @@ def analyze_tumor(image, model):
 
     # Calcular área y centroide
     tumor_area_px = sum(cv2.contourArea(c) for c in contours)
-    pixel_spacing = 0.035  # Ajusta según la resolución real de la imagen
+    pixel_spacing = 0.035  # Ajusta según tu resolución
     area_cm2 = tumor_area_px * (pixel_spacing ** 2)
 
+    # Tomamos el contorno más grande para el centroide
     if contours:
-        # Tomamos el contorno más grande para centroide
         largest_contour = max(contours, key=cv2.contourArea)
         M = cv2.moments(largest_contour)
-        cx = int(M['m10'] / M['m00']) if M['m00'] != 0 else 0
-        cy = int(M['m01'] / M['m00']) if M['m00'] != 0 else 0
+        cx = int(M['m10'] / M['m00']) if M['m00'] else 0
+        cy = int(M['m01'] / M['m00']) if M['m00'] else 0
     else:
         cx, cy = 0, 0
 
-    # Superponer heatmap al 30% sobre la imagen original
+    # Superponer el heatmap al 30% sobre la imagen original
     overlay = cv2.addWeighted(image_rgb, 0.7, cv2.cvtColor(heatmap_with_contour, cv2.COLOR_BGR2RGB), 0.3, 0)
 
-    st.image([image_rgb, overlay], width=400, caption=["Imagen Original", "Heatmap con contorno del Tumor"])
+    st.image([image_rgb, overlay], width=400, caption=["Imagen Original", "Watershed con contorno del Tumor"])
     st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
     st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
     st.write(f"🧠 **Área del Tumor:** `{area_cm2:.2f} cm²`")
