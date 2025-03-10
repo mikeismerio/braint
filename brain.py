@@ -23,6 +23,29 @@ page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Anál
 # ✅ Permitir al usuario subir una única imagen en la barra lateral
 uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
 
+
+
+#--------------------------------------------------------------------------------------------------------------------------------
+#Agregar segmentacion y metricas del tumor
+
+ # 📌 Mostrar segmentación
+                st.image([image, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=400)
+                # 📌 Mostrar métricas del tumor
+                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
+                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
+                # 📌 Mostrar resultados finales
+                if area_cm2 > 10:
+                    st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
+                else:
+                    st.success("✅ **El tumor es de tamaño pequeño o moderado.**")
+            else:
+                st.error("❌ No se detectaron tumores en la imagen.")
+        else:
+            st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
+#--------------------------------------------------------------------------------------------------------------------------------
+
+
+
 # 📌 Verificar si el usuario ha subido una imagen antes de continuar
 if uploaded_file:
     # ✅ Leer la imagen en memoria
