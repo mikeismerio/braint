@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 st.sidebar.title("📌 Configuración")
 
-# Cargar el modelo (¡sí, el cerebro digital ya está en marcha!)
+# Cargar el modelo (sí, el cerebro digital ya está en marcha)
 model_path = "2025-19-02_VGG_model.h5"
 model = load_model(model_path, compile=False)
 
@@ -17,7 +17,13 @@ uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", 
 
 def analyze_cranio(image):
     st.title("📏 Análisis del Cráneo")
-    blurred = cv2.GaussianBlur(image, (7, 7), 2)
+    # Si la imagen tiene 3 canales, conviértela a gris; si ya es gris, úsala tal cual
+    if len(image.shape) == 3 and image.shape[2] == 3:
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray_image = image.copy()
+    
+    blurred = cv2.GaussianBlur(gray_image, (7, 7), 2)
     edges = cv2.Canny(blurred, 30, 100)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     closed_edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
@@ -41,7 +47,8 @@ def analyze_cranio(image):
             "Braquicéfalo (cabeza ancha)"
         )
 
-        contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        # Para mostrar, convertimos el gris a BGR (aquí ya sabemos que gray_image es de 1 canal)
+        contour_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2BGR)
         cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
         cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
         cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)
@@ -56,7 +63,7 @@ def analyze_cranio(image):
 
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
-    # Convertimos la imagen a color si es necesario
+    # Aseguramos que la imagen tenga 3 canales para visualización
     if len(image.shape) == 2:
         image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     else:
@@ -71,17 +78,18 @@ def analyze_tumor(image, model):
     tumor_detected = probability >= 0.5
     diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
-    # Segmentación mejorada: umbralización de Otsu + operaciones morfológicas
+    # Mejor segmentación: se suaviza la imagen antes de aplicar Otsu
     gray_image = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
-    ret, tumor_mask = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    blurred_gray = cv2.GaussianBlur(gray_image, (5, 5), 0)
+    ret, tumor_mask = cv2.threshold(blurred_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     tumor_mask = cv2.morphologyEx(tumor_mask, cv2.MORPH_OPEN, kernel, iterations=1)
     tumor_mask = cv2.morphologyEx(tumor_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
-    # Crear heatmap de la segmentación
+    # Creamos el heatmap a partir de la máscara segmentada
     heatmap = cv2.applyColorMap(tumor_mask, cv2.COLORMAP_JET)
 
-    # Encontrar y dibujar contornos sobre el heatmap
+    # Encontrar y dibujar contornos sobre el heatmap para marcar la región sospechosa
     contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     heatmap_with_contour = heatmap.copy()
     if contours:
