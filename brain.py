@@ -5,8 +5,6 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 
-
-
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 
@@ -22,12 +20,6 @@ page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Anál
 
 # ✅ Permitir al usuario subir una única imagen en la barra lateral
 uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
-
-
-
-
-
-
 
 # 📌 Verificar si el usuario ha subido una imagen antes de continuar
 if uploaded_file:
@@ -65,7 +57,7 @@ if uploaded_file:
                     "Braquicéfalo (cabeza ancha)"
                 )
 
-                # 📌 Dibujar contornos y líneas azules en la imagen procesada
+                # 📌 Dibujar contornos y líneas en la imagen procesada
                 contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
                 cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
                 cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
@@ -83,29 +75,46 @@ if uploaded_file:
             st.title("🧠 Análisis del Tumor")
 
             # 📌 Convertir imagen a RGB y redimensionar
-            if len(image.shape) == 2:
-                image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-
-            image_resized = cv2.resize(image, (224, 224))  # Ajusta según el tamaño del modelo
-            image_array = np.expand_dims(image_resized, axis=0)  # Agregar batch
-            image_array = image_array / 255.0  # Normalizar
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+            image_resized = cv2.resize(image_rgb, (224, 224))
+            image_array = np.expand_dims(image_resized, axis=0) / 255.0
 
             # 📌 Realizar predicción
             prediction = model.predict(image_array)
-            probability = prediction[0][0]  # Asumimos que el modelo devuelve una probabilidad
-
-            # 📌 Diagnóstico basado en el umbral
-            threshold = 0.5
-            tumor_detected = probability >= threshold
+            probability = prediction[0][0]
+            tumor_detected = probability >= 0.5
             diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
-            # 📌 Mostrar resultados en la interfaz
-            st.image(image_resized, caption="Imagen Procesada para Análisis", width=500)
+            # 📌 Segmentación del tumor (simulación con umbralización)
+            _, tumor_mask = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY)
+            contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            tumor_area_px = sum(cv2.contourArea(c) for c in contours)
+            pixel_spacing = 0.035
+            area_cm2 = tumor_area_px * (pixel_spacing ** 2)
+
+            # 📌 Calcular el centro del tumor
+            if contours:
+                M = cv2.moments(contours[0])
+                cx = int(M['m10'] / M['m00']) if M['m00'] != 0 else 0
+                cy = int(M['m01'] / M['m00']) if M['m00'] != 0 else 0
+            else:
+                cx, cy = 0, 0
+
+            # 📌 Crear heatmap para resaltar la zona detectada
+            heatmap = cv2.applyColorMap(tumor_mask, cv2.COLORMAP_JET)
+
+            # 📌 Mostrar resultados
+            st.image([image_rgb, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], caption=["Imagen Original", "Segmentación"], width=400)
             st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
             st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
+            st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
+            st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
 
             # 📌 Alertas de riesgo
             if tumor_detected:
-                st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
+                if area_cm2 > 10:
+                    st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
+                else:
+                    st.success("✅ **El tumor es de tamaño pequeño o moderado.**")
             else:
                 st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
