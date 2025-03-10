@@ -1,113 +1,130 @@
 import streamlit as st
 import cv2
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras.models import load_model
-import matplotlib.pyplot as plt
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
+st.sidebar.title("📌 Configuración")
 
-# 📌 Cargar el modelo de detección de tumores
+# Cargar el modelo (¡no es magia, es Deep Learning!)
 model_path = "2025-19-02_VGG_model.h5"
 model = load_model(model_path, compile=False)
 
-# 📌 Barra lateral para selección de imagen y navegación
-st.sidebar.title("📌 Configuración")
-
-# 📌 Opciones de navegación en la barra lateral (Análisis Craneal o Tumor)
+# Opciones de navegación
 page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor"])
-
-# ✅ Permitir al usuario subir una única imagen en la barra lateral
 uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
 
-# 📌 Verificar si el usuario ha subido una imagen antes de continuar
+def analyze_cranio(image):
+    st.title("📏 Análisis del Cráneo")
+    # Suavizamos la imagen y extraemos los bordes (sin rodeos, ¡directo al grano!)
+    blurred = cv2.GaussianBlur(image, (7, 7), 2)
+    edges = cv2.Canny(blurred, 30, 100)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    closed_edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+    contours, _ = cv2.findContours(closed_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    min_area_threshold = 5000
+    largest_contour = max(contours, key=cv2.contourArea) if contours else None
+
+    if largest_contour is not None and cv2.contourArea(largest_contour) > min_area_threshold:
+        hull = cv2.convexHull(largest_contour)
+        x, y, w, h = cv2.boundingRect(hull)
+        pixel_spacing = 0.035  # Ajusta según la resolución real de la imagen
+
+        diameter_transversal_cm = w * pixel_spacing
+        diameter_anteroposterior_cm = h * pixel_spacing
+        cephalic_index = (diameter_transversal_cm / diameter_anteroposterior_cm) * 100
+
+        skull_type = (
+            "Dolicocéfalo (cabeza alargada)" if cephalic_index < 75 else
+            "Mesocefálico (cabeza normal)" if 75 <= cephalic_index <= 80 else
+            "Braquicéfalo (cabeza ancha)"
+        )
+
+        # Dibujar contornos y líneas (¡pinceladas de precisión!)
+        contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
+        cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
+        cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)
+
+        st.image(contour_image, caption="Contorno del Cráneo", width=500)
+        st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
+        st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
+        st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
+        st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
+    else:
+        st.error("No se encontró un contorno significativo del cráneo. ¿Seguro que la imagen no se tomó con el móvil?")
+
+def analyze_tumor(image, model):
+    st.title("🧠 Análisis del Tumor")
+    # Aseguramos que la imagen tenga 3 canales para visualización
+    if len(image.shape) == 2:
+        image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    else:
+        image_color = image.copy()
+    image_rgb = cv2.cvtColor(image_color, cv2.COLOR_BGR2RGB)
+
+    # Preprocesamiento para el modelo (imagen redimensionada y normalizada)
+    image_resized = cv2.resize(image_rgb, (224, 224))
+    image_array = np.expand_dims(image_resized, axis=0) / 255.0
+    prediction = model.predict(image_array)
+    probability = prediction[0][0]
+    tumor_detected = probability >= 0.5
+    diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
+
+    # Segmentación mejorada: umbralización de Otsu + operaciones morfológicas
+    if len(image.shape) != 2:
+        gray_image = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
+    else:
+        gray_image = image.copy()
+
+    ret, tumor_mask = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    tumor_mask = cv2.morphologyEx(tumor_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    tumor_mask = cv2.morphologyEx(tumor_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    heatmap = cv2.applyColorMap(tumor_mask, cv2.COLORMAP_JET)
+
+    # Calcular área y centroide del tumor
+    contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    tumor_area_px = sum(cv2.contourArea(c) for c in contours)
+    pixel_spacing = 0.035  # Ajusta este valor según la imagen
+    area_cm2 = tumor_area_px * (pixel_spacing ** 2)
+
+    if contours:
+        M = cv2.moments(contours[0])
+        cx = int(M['m10'] / M['m00']) if M['m00'] != 0 else 0
+        cy = int(M['m01'] / M['m00']) if M['m00'] != 0 else 0
+    else:
+        cx, cy = 0, 0
+
+    # Superponer el heatmap a la imagen original (para ver la segmentación en todo su esplendor)
+    overlay = cv2.addWeighted(image_rgb, 0.7, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB), 0.3, 0)
+
+    st.image([image_rgb, overlay], width=400, caption=["Imagen Original", "Segmentación del Tumor"])
+    st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
+    st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
+    st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
+    st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
+
+    if tumor_detected:
+        if area_cm2 > 10:
+            st.warning("⚠️ ¡El tumor está para volverse protagonista! Se recomienda un análisis más detallado.")
+        else:
+            st.success("✅ Tumor detectado, pero de tamaño razonable. Nada de pánico.")
+    else:
+        st.success("✅ El modelo no encontró tumor significativo. ¡A seguir con el día sin sobresaltos!")
+
+# Procesamiento de la imagen subida
 if uploaded_file:
-    # ✅ Leer la imagen en memoria
     image_bytes = uploaded_file.read()
     image_array = np.frombuffer(image_bytes, np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
-
+    # Intentamos leer la imagen sin forzar el modo (¡que no se complique la vida!)
+    image = cv2.imdecode(image_array, cv2.IMREAD_UNCHANGED)
     if image is not None:
-        # =================== PÁGINA 1: ANÁLISIS CRANEAL ===================
         if page == "Análisis Craneal":
-            st.title("📏 Análisis del Cráneo")
-
-            blurred = cv2.GaussianBlur(image, (7, 7), 2)
-            edges = cv2.Canny(blurred, 30, 100)
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            closed_edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
-            contours, _ = cv2.findContours(closed_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            min_area_threshold = 5000
-            largest_contour = max(contours, key=cv2.contourArea) if contours else None
-
-            if largest_contour is not None and cv2.contourArea(largest_contour) > min_area_threshold:
-                hull = cv2.convexHull(largest_contour)
-                x, y, w, h = cv2.boundingRect(hull)
-                pixel_spacing = 0.035
-
-                diameter_transversal_cm = w * pixel_spacing
-                diameter_anteroposterior_cm = h * pixel_spacing
-                cephalic_index = (diameter_transversal_cm / diameter_anteroposterior_cm) * 100
-
-                skull_type = (
-                    "Dolicocéfalo (cabeza alargada)" if cephalic_index < 75 else
-                    "Mesocefálico (cabeza normal)" if 75 <= cephalic_index <= 80 else
-                    "Braquicéfalo (cabeza ancha)"
-                )
-
-                # 📌 Dibujar contornos y líneas en la imagen procesada
-                contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
-                cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
-                cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)
-
-                # 📌 Mostrar resultados
-                st.image(contour_image, caption="Contorno del Cráneo", width=500)
-                st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
-                st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
-                st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
-                st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
-
-        # =================== PÁGINA 2: ANÁLISIS DEL TUMOR ===================
+            analyze_cranio(image)
         elif page == "Análisis del Tumor":
-            st.title("🧠 Análisis del Tumor")
-
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            image_resized = cv2.resize(image_rgb, (224, 224))
-            image_array = np.expand_dims(image_resized, axis=0) / 255.0
-
-            prediction = model.predict(image_array)
-            probability = prediction[0][0]
-            tumor_detected = probability >= 0.5
-            diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
-
-            _, tumor_mask = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY)
-            heatmap = cv2.applyColorMap(tumor_mask, cv2.COLORMAP_JET)
-
-            contours, _ = cv2.findContours(tumor_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            tumor_area_px = sum(cv2.contourArea(c) for c in contours)
-            pixel_spacing = 0.035
-            area_cm2 = tumor_area_px * (pixel_spacing ** 2)
-
-            if contours:
-                M = cv2.moments(contours[0])
-                cx = int(M['m10'] / M['m00']) if M['m00'] != 0 else 0
-                cy = int(M['m01'] / M['m00']) if M['m00'] != 0 else 0
-            else:
-                cx, cy = 0, 0
-
-            st.image([image_rgb, cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)], width=400)
-            st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
-            st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
-            st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
-            st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
-
-            if tumor_detected:
-                if area_cm2 > 10:
-                    st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
-                else:
-                    st.success("✅ **El tumor es de tamaño pequeño o moderado.**")
-            else:
-                st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
+            analyze_tumor(image, model)
+    else:
+        st.error("Error al cargar la imagen. Verifica el formato y contenido (no todas las selfies son médicas).")
