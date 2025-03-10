@@ -63,37 +63,34 @@ if uploaded_file:
                 st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
                 st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
 
+        # =================== PÁGINA 2: ANÁLISIS DEL TUMOR ===================
         elif page == "Análisis del Tumor":
             st.title("🧠 Análisis del Tumor")
 
+            # 📌 Convertir imagen a RGB y redimensionar
             if len(image.shape) == 2:
                 image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-            image_resized = cv2.resize(image, (224, 224))
-            image_array = np.expand_dims(image_resized, axis=0) / 255.0
 
+            image_resized = cv2.resize(image, (224, 224))  # Ajusta según el tamaño del modelo
+            image_array = np.expand_dims(image_resized, axis=0)  # Agregar batch
+            image_array = image_array / 255.0  # Normalizar
+
+            # 📌 Realizar predicción
             prediction = model.predict(image_array)
-            probability = prediction[0][0]
+            probability = prediction[0][0]  # Asumimos que el modelo devuelve una probabilidad
+
+            # 📌 Diagnóstico basado en el umbral
             threshold = 0.5
             tumor_detected = probability >= threshold
             diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
 
+            # 📌 Mostrar resultados en la interfaz
             st.image(image_resized, caption="Imagen Procesada para Análisis", width=500)
             st.write(f"🔍 **Probabilidad de Tumor:** `{probability:.2%}`")
             st.write(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
 
+            # 📌 Alertas de riesgo
             if tumor_detected:
-                heatmap = np.random.randint(0, 255, image.shape, dtype=np.uint8)
-                gray_heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-                area_cm2 = np.sum(heatmap > 100) * 0.01
-                cx, cy = np.mean(np.argwhere(heatmap > 100), axis=0).astype(int)
-                
-                st.image([image, cv2.cvtColor(gray_heatmap, cv2.COLOR_BGR2RGB)], width=400, caption=["Imagen Original", "Segmentación del Tumor"])
-                st.write(f"🧠 **Área del tumor:** `{area_cm2:.2f} cm²`")
-                st.write(f"📌 **Ubicación del tumor (Centro):** `({cx}, {cy})` en píxeles")
-
-                if area_cm2 > 10:
-                    st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
-                else:
-                    st.success("✅ **El tumor es de tamaño pequeño o moderado.**")
+                st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
             else:
                 st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
