@@ -5,6 +5,8 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 
+
+
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(layout="wide", page_title="Detección y Análisis de Imágenes Médicas")
 
@@ -21,13 +23,21 @@ page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Anál
 # ✅ Permitir al usuario subir una única imagen en la barra lateral
 uploaded_file = st.sidebar.file_uploader("📸 Selecciona una imagen médica:", type=["png", "jpg", "jpeg"])
 
+
+
+
+
+
+
 # 📌 Verificar si el usuario ha subido una imagen antes de continuar
 if uploaded_file:
+    # ✅ Leer la imagen en memoria
     image_bytes = uploaded_file.read()
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
 
     if image is not None:
+        # =================== PÁGINA 1: ANÁLISIS CRANEAL ===================
         if page == "Análisis Craneal":
             st.title("📏 Análisis del Cráneo")
 
@@ -55,8 +65,13 @@ if uploaded_file:
                     "Braquicéfalo (cabeza ancha)"
                 )
 
+                # 📌 Dibujar contornos y líneas azules en la imagen procesada
                 contour_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
                 cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
+                cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
+                cv2.line(contour_image, (x + w // 2, y), (x + w // 2, y + h), (255, 0, 0), 2)
+
+                # 📌 Mostrar resultados
                 st.image(contour_image, caption="Contorno del Cráneo", width=500)
                 st.write(f"📏 **Diámetro Transversal:** `{diameter_transversal_cm:.2f} cm`")
                 st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
