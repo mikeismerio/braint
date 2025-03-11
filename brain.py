@@ -185,12 +185,12 @@ def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
     pdf.cell(0, 8, title, ln=True, fill=True)
     pdf.ln(1)
     
-    # Coordenadas y tamaño de la imagen
+    # Coordenadas y tamaño de la imagen (ligeramente más grande)
     start_y = pdf.get_y()
     x_image = 10
-    image_width = 40
-    image_height = 40  # forzamos un tamaño fijo
-    line_height = 5
+    image_width = 60
+    image_height = 60  
+    line_height = 6
     
     # Guardar imagen temporal y colocarla en PDF
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
@@ -204,14 +204,16 @@ def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
     pdf.set_xy(x_text, start_y)
     pdf.set_font("Arial", "", 12)
 
-    # Imprimir cada métrica en una línea
+    # Para que cada línea se mantenga a la derecha, 
+    # forzamos la posición X en cada iteración
     for key, value in metrics.items():
-        pdf.cell(0, line_height, f"{key}: {value}", ln=True)
+        pdf.set_x(x_text)  # Mantener la misma columna
+        pdf.cell(80, line_height, f"{key}: {value}", ln=True, align='L')
 
     # Calculamos la altura total del texto
     text_block_height = len(metrics) * line_height
     
-    # Bajamos el cursor hasta debajo de la imagen o del texto, lo que sea más grande
+    # Bajamos el cursor hasta debajo de la imagen o del texto, lo que sea mayor
     new_y = start_y + max(image_height, text_block_height) + 5
     pdf.set_y(new_y)
     pdf.ln(1)
