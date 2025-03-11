@@ -3,16 +3,21 @@ import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
 import sys
+from fpdf import FPDF
+import io
+import tempfile
+import os
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(layout="wide", page_title="🧠 Detección y Segmentación de Tumores Cerebrales")
 st.sidebar.title("📌 Configuración")
 
 # Selección de página
-page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor"])
+page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
 
-# Subida de imagen
-uploaded_file = st.sidebar.file_uploader("📸 Subir imagen médica (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
+# Subida de imagen para análisis (no se usa en Reporte PDF)
+if page != "Reporte PDF":
+    uploaded_file = st.sidebar.file_uploader("📸 Subir imagen médica (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
 
 # =================== CARGAR MODELO ===================
 st.sidebar.write("📥 Cargando modelo 2025-19-02_VGG_model.h5...")
@@ -155,14 +160,88 @@ def analyze_tumor(image, model):
         st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
 
 # ---------------------------------------------------------------------------
-# Procesamiento de la imagen subida
-if uploaded_file:
-    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
-    if image is not None:
-        if page == "Análisis Craneal":
-            analyze_cranio(image)
-        elif page == "Análisis del Tumor":
-            analyze_tumor(image, model)
+# Función para generar el reporte PDF
+def generate_pdf_report(patient_data, images):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "Reporte Médico", ln=True, align="C")
+    pdf.ln(10)
+
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 10, f"Nombre: {patient_data['nombre']}", ln=True)
+    pdf.cell(0, 10, f"Edad: {patient_data['edad']}", ln=True)
+    pdf.cell(0, 10, f"Sexo: {patient_data['sexo']}", ln=True)
+    pdf.cell(0, 10, f"Fecha de estudio: {patient_data['fecha']}", ln=True)
+    pdf.multi_cell(0, 10, f"Observaciones: {patient_data['observaciones']}")
+    pdf.ln(10)
+
+    if images:
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Imágenes del Estudio", ln=True)
+        for img in images:
+            # Guardar la imagen en un archivo temporal
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
+                tmp_file.write(img.getvalue())
+                tmp_file.flush()
+                image_path = tmp_file.name
+            pdf.add_page()
+            try:
+                pdf.image(image_path, x=10, y=10, w=pdf.w - 20)
+            except Exception as e:
+                pdf.set_font("Arial", "", 12)
+                pdf.cell(0, 10, f"Error al cargar imagen: {str(e)}", ln=True)
+            os.remove(image_path)
     else:
-        st.error("Error al cargar la imagen. Verifica el formato y contenido.")
+        pdf.cell(0, 10, "No se han subido imágenes para este reporte.", ln=True)
+
+    # Devolver el PDF en bytes
+    pdf_bytes = pdf.output(dest="S").encode("latin1")
+    return pdf_bytes
+
+# Función para la página de Reporte PDF
+def pdf_report():
+    st.title("📝 Generación de Reporte PDF")
+    st.write("Ingresa los datos del paciente y sube las imágenes que deseas incluir en el reporte.")
+
+    with st.form("pdf_form"):
+        nombre = st.text_input("Nombre del Paciente")
+        edad = st.number_input("Edad", min_value=0, max_value=120, step=1)
+        sexo = st.selectbox("Sexo", ["Masculino", "Femenino", "Otro"])
+        fecha = st.date_input("Fecha de estudio")
+        observaciones = st.text_area("Observaciones")
+        images = st.file_uploader("Sube las imágenes para el reporte", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+        submit = st.form_submit_button("Generar Reporte")
+
+    if submit:
+        if not nombre:
+            st.error("El nombre es obligatorio. ¡No te saltes los datos del paciente!")
+            return
+        patient_data = {
+            "nombre": nombre,
+            "edad": edad,
+            "sexo": sexo,
+            "fecha": fecha.strftime("%Y-%m-%d"),
+            "observaciones": observaciones
+        }
+        pdf_bytes = generate_pdf_report(patient_data, images)
+        st.success("Reporte PDF generado exitosamente. ¡Ahora sí, a presumir de reporte profesional!")
+        st.download_button("Descargar Reporte PDF", pdf_bytes, file_name="reporte.pdf", mime="application/pdf")
+
+# ---------------------------------------------------------------------------
+# Procesamiento de la imagen subida para Análisis Craneal y Tumor
+if page == "Análisis Craneal" or page == "Análisis del Tumor":
+    if uploaded_file:
+        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+        image = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
+        if image is not None:
+            if page == "Análisis Craneal":
+                analyze_cranio(image)
+            elif page == "Análisis del Tumor":
+                analyze_tumor(image, model)
+        else:
+            st.error("Error al cargar la imagen. Verifica el formato y contenido.")
+    else:
+        st.info("Por favor, sube una imagen desde la barra lateral para comenzar el análisis.")
+elif page == "Reporte PDF":
+    pdf_report()
