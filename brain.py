@@ -12,7 +12,7 @@ import os
 st.set_page_config(layout="wide", page_title="🧠 Detección y Segmentación de Tumores Cerebrales")
 st.sidebar.title("📌 Configuración")
 
-# Selección de página: análisis o reporte
+# Selección de página
 page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
 
 # Subida de imagen (solo para análisis)
@@ -185,7 +185,7 @@ def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
     pdf.cell(0, 8, title, ln=True, fill=True)
     pdf.ln(1)
     
-    # Coordenadas y tamaño de la imagen (ligeramente más grande)
+    # Coordenadas y tamaño de la imagen
     start_y = pdf.get_y()
     x_image = 10
     image_width = 60
@@ -204,25 +204,33 @@ def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
     pdf.set_xy(x_text, start_y)
     pdf.set_font("Arial", "", 12)
 
-    # Para que cada línea se mantenga a la derecha, 
-    # forzamos la posición X en cada iteración
     for key, value in metrics.items():
-        pdf.set_x(x_text)  # Mantener la misma columna
+        pdf.set_x(x_text)  
         pdf.cell(80, line_height, f"{key}: {value}", ln=True, align='L')
 
-    # Calculamos la altura total del texto
     text_block_height = len(metrics) * line_height
-    
-    # Bajamos el cursor hasta debajo de la imagen o del texto, lo que sea mayor
     new_y = start_y + max(image_height, text_block_height) + 5
     pdf.set_y(new_y)
     pdf.ln(1)
 
 # ---------------------------------------------------------------------------
-# Función para generar el reporte PDF
+# Función para generar el reporte PDF (con portada en la 1ra página)
 def generate_pdf_report(patient_data):
     pdf = FPDF()
+    
+    # === PÁGINA DE PORTADA ===
     pdf.add_page()
+    try:
+        # Ajusta x, y y tamaño de acuerdo a tu portada
+        pdf.image("portada.jpg", x=0, y=0, w=210)  # Ancho completo A4
+    except Exception as e:
+        # Si no se encuentra la imagen, simplemente sigue
+        pass
+    
+    # Saltar a la siguiente página para el contenido
+    pdf.add_page()
+    
+    # === COMIENZA EL REPORTE ===
     # Cabecera con fondo de color
     pdf.set_fill_color(50, 150, 250)
     pdf.set_text_color(255, 255, 255)
