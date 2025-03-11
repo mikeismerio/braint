@@ -176,7 +176,7 @@ def analyze_tumor(image, model):
         st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
 
 # ---------------------------------------------------------------------------
-# Función para generar el reporte PDF con formato, colores y estructura
+# Función para generar el reporte PDF con columnas para imágenes y métricas
 def generate_pdf_report(patient_data):
     pdf = FPDF()
     pdf.add_page()
@@ -199,41 +199,53 @@ def generate_pdf_report(patient_data):
     pdf.multi_cell(0, 10, f"Observaciones: {patient_data['observaciones']}")
     pdf.ln(5)
     
-    # Sección de análisis del cráneo
+    # --- Sección: Medición del Cráneo ---
     pdf.set_fill_color(200, 220, 255)
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, "Medición del Cráneo", ln=True, fill=True)
-    pdf.set_font("Arial", "", 12)
+    pdf.ln(2)
+    col_width = (pdf.w - 20) / 2  # Dividir el ancho disponible en dos columnas
+    start_y = pdf.get_y()
+    
     if "cranio_metrics" in st.session_state:
+        # Guardar imagen en un archivo temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
+            cv2.imwrite(tmp_file.name, st.session_state.cranio_image)
+            image_path = tmp_file.name
+        # Columna izquierda: imagen
+        pdf.image(image_path, x=10, y=start_y, w=col_width - 2)
+        # Columna derecha: métricas
+        pdf.set_xy(10 + col_width, start_y)
+        pdf.set_font("Arial", "", 12)
         for key, value in st.session_state.cranio_metrics.items():
-            pdf.cell(0, 10, f"{key}: {value}", ln=True)
-        # Agregar imagen del cráneo si está disponible
-        if "cranio_image" in st.session_state:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
-                cv2.imwrite(tmp_file.name, st.session_state.cranio_image)
-                image_path = tmp_file.name
-            pdf.ln(3)
-            pdf.image(image_path, x=10, y=pdf.get_y(), w=pdf.w - 20)
-            os.remove(image_path)
+            pdf.cell(col_width, 10, f"{key}: {value}", ln=True)
+        pdf.ln(10)
+        os.remove(image_path)
     else:
         pdf.cell(0, 10, "No se realizaron análisis del cráneo.", ln=True)
     pdf.ln(5)
     
-    # Sección de segmentación del tumor
+    # --- Sección: Segmentación del Tumor ---
     pdf.set_fill_color(255, 200, 200)
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, "Segmentación del Tumor", ln=True, fill=True)
-    pdf.set_font("Arial", "", 12)
+    pdf.ln(2)
+    start_y = pdf.get_y()
+    
     if "tumor_metrics" in st.session_state:
+        # Guardar imagen del tumor en un archivo temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
+            cv2.imwrite(tmp_file.name, st.session_state.tumor_image)
+            image_path = tmp_file.name
+        # Columna izquierda: imagen
+        pdf.image(image_path, x=10, y=start_y, w=col_width - 2)
+        # Columna derecha: métricas
+        pdf.set_xy(10 + col_width, start_y)
+        pdf.set_font("Arial", "", 12)
         for key, value in st.session_state.tumor_metrics.items():
-            pdf.cell(0, 10, f"{key}: {value}", ln=True)
-        if "tumor_image" in st.session_state:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
-                cv2.imwrite(tmp_file.name, st.session_state.tumor_image)
-                image_path = tmp_file.name
-            pdf.ln(3)
-            pdf.image(image_path, x=10, y=pdf.get_y(), w=pdf.w - 20)
-            os.remove(image_path)
+            pdf.cell(col_width, 10, f"{key}: {value}", ln=True)
+        pdf.ln(10)
+        os.remove(image_path)
     else:
         pdf.cell(0, 10, "No se realizaron análisis del tumor.", ln=True)
     
