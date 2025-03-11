@@ -12,10 +12,10 @@ import os
 st.set_page_config(layout="wide", page_title="🧠 Detección y Segmentación de Tumores Cerebrales")
 st.sidebar.title("📌 Configuración")
 
-# Selección de página
+# Selección de página: análisis o reporte
 page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
 
-# Subida de imagen para análisis (no se usa en Reporte PDF)
+# Subida de imagen (solo para análisis)
 if page != "Reporte PDF":
     uploaded_file = st.sidebar.file_uploader("📸 Subir imagen médica (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
 
@@ -30,10 +30,10 @@ except Exception as e:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Función para Análisis Craneal (estructura anterior)
+# Función para Análisis Craneal
 def analyze_cranio(image):
     st.title("📏 Análisis del Cráneo")
-    # Convertir a escala de grises si es una imagen a color
+    # Convertir a escala de grises si es necesario
     if len(image.shape) == 3 and image.shape[2] == 3:
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
@@ -51,7 +51,7 @@ def analyze_cranio(image):
     if largest_contour is not None and cv2.contourArea(largest_contour) > min_area_threshold:
         hull = cv2.convexHull(largest_contour)
         x, y, w, h = cv2.boundingRect(hull)
-        pixel_spacing = 0.035  # Ajusta según la resolución real de la imagen
+        pixel_spacing = 0.035  # Ajusta según la resolución real
 
         diameter_transversal_cm = w * pixel_spacing
         diameter_anteroposterior_cm = h * pixel_spacing
@@ -63,7 +63,7 @@ def analyze_cranio(image):
             "Braquicéfalo (cabeza ancha)"
         )
 
-        # Convertir el gris a BGR para dibujar contornos
+        # Dibujar contornos sobre la imagen
         contour_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2BGR)
         cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
         cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
@@ -74,21 +74,30 @@ def analyze_cranio(image):
         st.write(f"📏 **Diámetro Anteroposterior:** `{diameter_anteroposterior_cm:.2f} cm`")
         st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
         st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
+
+        # Guardar resultados en session_state para el reporte PDF
+        st.session_state.cranio_metrics = {
+            "Diámetro Transversal": f"{diameter_transversal_cm:.2f} cm",
+            "Diámetro Anteroposterior": f"{diameter_anteroposterior_cm:.2f} cm",
+            "Índice Cefálico": f"{cephalic_index:.2f}",
+            "Tipo de Cráneo": skull_type
+        }
+        st.session_state.cranio_image = contour_image
     else:
         st.error("No se encontró un contorno significativo del cráneo.")
 
 # ---------------------------------------------------------------------------
-# Función para Análisis del Tumor: incluye predicción con CNN y segmentación
+# Función para Análisis del Tumor
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
-    # Asegurarse de trabajar con una imagen en 3 canales para visualización
+    # Asegurar imagen en 3 canales para visualización
     if len(image.shape) == 2:
         image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     else:
         image_color = image.copy()
     image_rgb = cv2.cvtColor(image_color, cv2.COLOR_BGR2RGB)
     
-    # Preprocesamiento para el modelo: redimensionar a 224x224 y convertir a RGB
+    # Preprocesamiento para el modelo
     image_resized = cv2.resize(image, (224, 224))
     if len(image_resized.shape) == 2:
         image_rgb_resized = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
@@ -96,7 +105,6 @@ def analyze_tumor(image, model):
         image_rgb_resized = cv2.resize(image_rgb, (224, 224))
     image_array = np.expand_dims(image_rgb_resized, axis=0)
     
-    # Realizar la predicción con la CNN
     st.write("🔍 **Analizando la imagen...**")
     prediction = model.predict(image_array)
     probability = prediction[0][0]
@@ -107,17 +115,21 @@ def analyze_tumor(image, model):
     st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
     st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
     
+    # Guardar datos básicos del tumor
+    st.session_state.tumor_metrics = {
+        "Diagnóstico": diagnosis,
+        "Probabilidad": f"{probability:.2%}"
+    }
+    
     if tumor_detected:
         st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
-        pixel_spacing = 0.04  # cm/píxel (ajusta según la resolución)
+        pixel_spacing = 0.04  # Ajusta según la resolución
         
-        # Para segmentar, primero convertir la imagen a escala de grises (si no lo está)
         if len(image.shape) == 3:
             gray_seg = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
             gray_seg = image.copy()
             
-        # Segmentación: suavizado y umbral fijo
         blurred = cv2.GaussianBlur(gray_seg, (7, 7), 2)
         _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -133,12 +145,10 @@ def analyze_tumor(image, model):
             cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else 0
             cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else 0
             
-            # Dibujar contornos y centroide sobre la imagen original (convertida a BGR)
             tumor_image = cv2.cvtColor(gray_seg, cv2.COLOR_GRAY2BGR)
             cv2.drawContours(tumor_image, [tumor_contour], -1, (0, 255, 0), 2)
             cv2.circle(tumor_image, (cx, cy), 5, (0, 0, 255), -1)
             
-            # Crear una máscara del tumor y generar heatmap
             mask = np.zeros_like(gray_seg, dtype=np.uint8)
             cv2.drawContours(mask, [tumor_contour], -1, 255, thickness=cv2.FILLED)
             tumor_region = cv2.bitwise_and(gray_seg, gray_seg, mask=mask)
@@ -150,6 +160,12 @@ def analyze_tumor(image, model):
             st.write(f"🧠 **Área del Tumor:** `{area_cm2:.2f} cm²`")
             st.write(f"📌 **Ubicación del Tumor (Centro):** `({cx}, {cy})` en píxeles")
             
+            st.session_state.tumor_metrics.update({
+                "Área del Tumor": f"{area_cm2:.2f} cm²",
+                "Ubicación (Centro)": f"({cx}, {cy})"
+            })
+            st.session_state.tumor_image = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+            
             if area_cm2 > 10:
                 st.warning("⚠️ **El tumor es grande. Se recomienda un análisis más detallado.**")
             else:
@@ -160,62 +176,85 @@ def analyze_tumor(image, model):
         st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
 
 # ---------------------------------------------------------------------------
-# Función para generar el reporte PDF
-def generate_pdf_report(patient_data, images):
+# Función para generar el reporte PDF con formato, colores y estructura
+def generate_pdf_report(patient_data):
     pdf = FPDF()
     pdf.add_page()
+    # Cabecera con fondo de color
+    pdf.set_fill_color(50, 150, 250)
+    pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Reporte Médico", ln=True, align="C")
-    pdf.ln(10)
-
+    pdf.cell(0, 10, "Reporte Médico", ln=True, align="C", fill=True)
+    pdf.ln(5)
+    pdf.set_text_color(0, 0, 0)
+    
+    # Datos del paciente
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Datos del Paciente", ln=True)
     pdf.set_font("Arial", "", 12)
     pdf.cell(0, 10, f"Nombre: {patient_data['nombre']}", ln=True)
     pdf.cell(0, 10, f"Edad: {patient_data['edad']}", ln=True)
     pdf.cell(0, 10, f"Sexo: {patient_data['sexo']}", ln=True)
     pdf.cell(0, 10, f"Fecha de estudio: {patient_data['fecha']}", ln=True)
     pdf.multi_cell(0, 10, f"Observaciones: {patient_data['observaciones']}")
-    pdf.ln(10)
-
-    if images:
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Imágenes del Estudio", ln=True)
-        for img in images:
-            # Guardar la imagen en un archivo temporal
+    pdf.ln(5)
+    
+    # Sección de análisis del cráneo
+    pdf.set_fill_color(200, 220, 255)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Medición del Cráneo", ln=True, fill=True)
+    pdf.set_font("Arial", "", 12)
+    if "cranio_metrics" in st.session_state:
+        for key, value in st.session_state.cranio_metrics.items():
+            pdf.cell(0, 10, f"{key}: {value}", ln=True)
+        # Agregar imagen del cráneo si está disponible
+        if "cranio_image" in st.session_state:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
-                tmp_file.write(img.getvalue())
-                tmp_file.flush()
+                cv2.imwrite(tmp_file.name, st.session_state.cranio_image)
                 image_path = tmp_file.name
-            pdf.add_page()
-            try:
-                pdf.image(image_path, x=10, y=10, w=pdf.w - 20)
-            except Exception as e:
-                pdf.set_font("Arial", "", 12)
-                pdf.cell(0, 10, f"Error al cargar imagen: {str(e)}", ln=True)
+            pdf.ln(3)
+            pdf.image(image_path, x=10, y=pdf.get_y(), w=pdf.w - 20)
             os.remove(image_path)
     else:
-        pdf.cell(0, 10, "No se han subido imágenes para este reporte.", ln=True)
-
-    # Devolver el PDF en bytes
+        pdf.cell(0, 10, "No se realizaron análisis del cráneo.", ln=True)
+    pdf.ln(5)
+    
+    # Sección de segmentación del tumor
+    pdf.set_fill_color(255, 200, 200)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Segmentación del Tumor", ln=True, fill=True)
+    pdf.set_font("Arial", "", 12)
+    if "tumor_metrics" in st.session_state:
+        for key, value in st.session_state.tumor_metrics.items():
+            pdf.cell(0, 10, f"{key}: {value}", ln=True)
+        if "tumor_image" in st.session_state:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
+                cv2.imwrite(tmp_file.name, st.session_state.tumor_image)
+                image_path = tmp_file.name
+            pdf.ln(3)
+            pdf.image(image_path, x=10, y=pdf.get_y(), w=pdf.w - 20)
+            os.remove(image_path)
+    else:
+        pdf.cell(0, 10, "No se realizaron análisis del tumor.", ln=True)
+    
     pdf_bytes = pdf.output(dest="S").encode("latin1")
     return pdf_bytes
 
+# ---------------------------------------------------------------------------
 # Función para la página de Reporte PDF
 def pdf_report():
     st.title("📝 Generación de Reporte PDF")
-    st.write("Ingresa los datos del paciente y sube las imágenes que deseas incluir en el reporte.")
-
+    st.write("Ingresa los datos del paciente para generar el reporte con los análisis realizados.")
     with st.form("pdf_form"):
         nombre = st.text_input("Nombre del Paciente")
         edad = st.number_input("Edad", min_value=0, max_value=120, step=1)
         sexo = st.selectbox("Sexo", ["Masculino", "Femenino", "Otro"])
         fecha = st.date_input("Fecha de estudio")
         observaciones = st.text_area("Observaciones")
-        images = st.file_uploader("Sube las imágenes para el reporte", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
         submit = st.form_submit_button("Generar Reporte")
-
     if submit:
         if not nombre:
-            st.error("El nombre es obligatorio. ¡No te saltes los datos del paciente!")
+            st.error("El nombre es obligatorio.")
             return
         patient_data = {
             "nombre": nombre,
@@ -224,13 +263,13 @@ def pdf_report():
             "fecha": fecha.strftime("%Y-%m-%d"),
             "observaciones": observaciones
         }
-        pdf_bytes = generate_pdf_report(patient_data, images)
-        st.success("Reporte PDF generado exitosamente. ¡Ahora sí, a presumir de reporte profesional!")
+        pdf_bytes = generate_pdf_report(patient_data)
+        st.success("Reporte PDF generado exitosamente.")
         st.download_button("Descargar Reporte PDF", pdf_bytes, file_name="reporte.pdf", mime="application/pdf")
 
 # ---------------------------------------------------------------------------
-# Procesamiento de la imagen subida para Análisis Craneal y Tumor
-if page == "Análisis Craneal" or page == "Análisis del Tumor":
+# Procesamiento según la sección seleccionada
+if page in ["Análisis Craneal", "Análisis del Tumor"]:
     if uploaded_file:
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
@@ -242,6 +281,6 @@ if page == "Análisis Craneal" or page == "Análisis del Tumor":
         else:
             st.error("Error al cargar la imagen. Verifica el formato y contenido.")
     else:
-        st.info("Por favor, sube una imagen desde la barra lateral para comenzar el análisis.")
+        st.info("Por favor, sube una imagen para comenzar el análisis.")
 elif page == "Reporte PDF":
     pdf_report()
