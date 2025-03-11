@@ -9,7 +9,11 @@ import tempfile
 import os
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
-st.set_page_config(layout="wide", page_title="🧠 Detección y Segmentación de Tumores Cerebrales")
+st.set_page_config(
+    layout="wide",
+    page_title="🧠 Detección y Segmentación de Tumores Cerebrales",
+    initial_sidebar_state="collapsed"  # Sidebar oculta al iniciar
+)
 st.sidebar.title("📌 Configuración")
 
 # Selección de página: análisis o reporte
@@ -18,7 +22,7 @@ page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Anál
 # Mostrar portada en la interfaz de la app (excepto en Reporte PDF)
 if page != "Reporte PDF":
     try:
-        st.image("portada.jpg", width=600)
+        st.image("portada.jpg", width=800)  # Imagen más grande
     except Exception as e:
         st.warning("No se encontró la imagen de portada.")
 
@@ -40,7 +44,6 @@ except Exception as e:
 # Función para Análisis Craneal
 def analyze_cranio(image):
     st.title("📏 Análisis del Cráneo")
-    # Convertir a escala de grises si es necesario
     if len(image.shape) == 3 and image.shape[2] == 3:
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
@@ -51,10 +54,10 @@ def analyze_cranio(image):
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     closed_edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
     contours, _ = cv2.findContours(closed_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+    
     min_area_threshold = 5000
     largest_contour = max(contours, key=cv2.contourArea) if contours else None
-
+    
     if largest_contour is not None and cv2.contourArea(largest_contour) > min_area_threshold:
         hull = cv2.convexHull(largest_contour)
         x, y, w, h = cv2.boundingRect(hull)
@@ -70,7 +73,6 @@ def analyze_cranio(image):
             "Braquicéfalo (cabeza ancha)"
         )
 
-        # Dibujar contornos sobre la imagen
         contour_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2BGR)
         cv2.drawContours(contour_image, [hull], -1, (0, 255, 0), 2)
         cv2.line(contour_image, (x, y + h // 2), (x + w, y + h // 2), (255, 0, 0), 2)
@@ -82,7 +84,6 @@ def analyze_cranio(image):
         st.write(f"📏 **Índice Cefálico:** `{cephalic_index:.2f}`")
         st.write(f"📌 **Tipo de Cráneo:** `{skull_type}`")
 
-        # Guardar resultados en session_state para el reporte PDF
         st.session_state.cranio_metrics = {
             "Diámetro Transversal": f"{diameter_transversal_cm:.2f} cm",
             "Diámetro Anteroposterior": f"{diameter_anteroposterior_cm:.2f} cm",
@@ -97,14 +98,12 @@ def analyze_cranio(image):
 # Función para Análisis del Tumor
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
-    # Asegurar imagen en 3 canales para visualización
     if len(image.shape) == 2:
         image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     else:
         image_color = image.copy()
     image_rgb = cv2.cvtColor(image_color, cv2.COLOR_BGR2RGB)
     
-    # Preprocesamiento para el modelo
     image_resized = cv2.resize(image, (224, 224))
     if len(image_resized.shape) == 2:
         image_rgb_resized = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
@@ -122,7 +121,6 @@ def analyze_tumor(image, model):
     st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
     st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
     
-    # Guardar datos básicos del tumor
     st.session_state.tumor_metrics = {
         "Diagnóstico": diagnosis,
         "Probabilidad": f"{probability:.2%}"
@@ -185,28 +183,24 @@ def analyze_tumor(image, model):
 # ---------------------------------------------------------------------------
 # Función auxiliar: coloca imagen a la izquierda y métricas a la derecha
 def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
-    # Encabezado de sección
     r, g, b = fill_color
     pdf.set_fill_color(r, g, b)
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 8, title, ln=True, fill=True)
     pdf.ln(1)
     
-    # Coordenadas y tamaño de la imagen
     start_y = pdf.get_y()
     x_image = 10
     image_width = 60
     image_height = 60  
     line_height = 6
     
-    # Guardar imagen temporal y colocarla en PDF
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
         cv2.imwrite(tmp_file.name, image)
         image_path = tmp_file.name
     pdf.image(image_path, x=x_image, y=start_y, w=image_width, h=image_height)
     os.remove(image_path)
 
-    # Métricas a la derecha: forzamos la posición X en cada línea
     x_text = x_image + image_width + 5
     for key, value in metrics.items():
         pdf.set_xy(x_text, pdf.get_y())
@@ -226,15 +220,12 @@ def generate_pdf_report(patient_data):
     # === PÁGINA DE PORTADA ===
     pdf.add_page()
     try:
-        # Ajusta x, y y tamaño de acuerdo a tu portada
         pdf.image("portada.jpg", x=0, y=0, w=210)
     except Exception as e:
         pass
     
-    # Saltar a la siguiente página para el contenido
     pdf.add_page()
     
-    # === COMIENZA EL REPORTE ===
     pdf.set_fill_color(50, 150, 250)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 16)
@@ -242,7 +233,6 @@ def generate_pdf_report(patient_data):
     pdf.ln(5)
     pdf.set_text_color(0, 0, 0)
     
-    # Datos del paciente
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 8, "Datos del Paciente", ln=True)
     pdf.set_font("Arial", "", 12)
@@ -253,7 +243,6 @@ def generate_pdf_report(patient_data):
     pdf.multi_cell(0, 6, f"Observaciones: {patient_data['observaciones']}")
     pdf.ln(3)
     
-    # Medición del Cráneo
     if "cranio_metrics" in st.session_state:
         add_section_with_image_and_metrics(
             pdf,
@@ -270,7 +259,6 @@ def generate_pdf_report(patient_data):
         pdf.cell(0, 6, "No se realizaron análisis del cráneo.", ln=True)
         pdf.ln(5)
     
-    # Segmentación del Tumor
     if "tumor_metrics" in st.session_state:
         add_section_with_image_and_metrics(
             pdf,
