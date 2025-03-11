@@ -12,8 +12,15 @@ import os
 st.set_page_config(layout="wide", page_title="🧠 Detección y Segmentación de Tumores Cerebrales")
 st.sidebar.title("📌 Configuración")
 
-# Selección de página
+# Selección de página: análisis o reporte
 page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
+
+# Mostrar portada en la interfaz de la app (excepto en Reporte PDF)
+if page != "Reporte PDF":
+    try:
+        st.image("portada.jpg", width=600)
+    except Exception as e:
+        st.warning("No se encontró la imagen de portada.")
 
 # Subida de imagen (solo para análisis)
 if page != "Reporte PDF":
@@ -199,13 +206,11 @@ def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
     pdf.image(image_path, x=x_image, y=start_y, w=image_width, h=image_height)
     os.remove(image_path)
 
-    # Métricas a la derecha
+    # Métricas a la derecha: forzamos la posición X en cada línea
     x_text = x_image + image_width + 5
-    pdf.set_xy(x_text, start_y)
-    pdf.set_font("Arial", "", 12)
-
     for key, value in metrics.items():
-        pdf.set_x(x_text)  
+        pdf.set_xy(x_text, pdf.get_y())
+        pdf.set_font("Arial", "", 12)
         pdf.cell(80, line_height, f"{key}: {value}", ln=True, align='L')
 
     text_block_height = len(metrics) * line_height
@@ -222,16 +227,14 @@ def generate_pdf_report(patient_data):
     pdf.add_page()
     try:
         # Ajusta x, y y tamaño de acuerdo a tu portada
-        pdf.image("portada.jpg", x=0, y=0, w=210)  # Ancho completo A4
+        pdf.image("portada.jpg", x=0, y=0, w=210)
     except Exception as e:
-        # Si no se encuentra la imagen, simplemente sigue
         pass
     
     # Saltar a la siguiente página para el contenido
     pdf.add_page()
     
     # === COMIENZA EL REPORTE ===
-    # Cabecera con fondo de color
     pdf.set_fill_color(50, 150, 250)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 16)
@@ -284,7 +287,6 @@ def generate_pdf_report(patient_data):
         pdf.cell(0, 6, "No se realizaron análisis del tumor.", ln=True)
         pdf.ln(5)
     
-    # Generar bytes del PDF
     pdf_bytes = pdf.output(dest="S").encode("latin1")
     return pdf_bytes
 
