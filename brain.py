@@ -176,7 +176,7 @@ def analyze_tumor(image, model):
         st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
 
 # ---------------------------------------------------------------------------
-# Función para generar el reporte PDF con columnas para imágenes y métricas
+# Función para generar el reporte PDF con imágenes más pequeñas y menor espaciado
 def generate_pdf_report(patient_data):
     pdf = FPDF()
     pdf.add_page()
@@ -190,21 +190,21 @@ def generate_pdf_report(patient_data):
     
     # Datos del paciente
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Datos del Paciente", ln=True)
+    pdf.cell(0, 8, "Datos del Paciente", ln=True)
     pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 10, f"Nombre: {patient_data['nombre']}", ln=True)
-    pdf.cell(0, 10, f"Edad: {patient_data['edad']}", ln=True)
-    pdf.cell(0, 10, f"Sexo: {patient_data['sexo']}", ln=True)
-    pdf.cell(0, 10, f"Fecha de estudio: {patient_data['fecha']}", ln=True)
-    pdf.multi_cell(0, 10, f"Observaciones: {patient_data['observaciones']}")
-    pdf.ln(5)
+    pdf.cell(0, 8, f"Nombre: {patient_data['nombre']}", ln=True)
+    pdf.cell(0, 8, f"Edad: {patient_data['edad']}", ln=True)
+    pdf.cell(0, 8, f"Sexo: {patient_data['sexo']}", ln=True)
+    pdf.cell(0, 8, f"Fecha de estudio: {patient_data['fecha']}", ln=True)
+    pdf.multi_cell(0, 8, f"Observaciones: {patient_data['observaciones']}")
+    pdf.ln(3)
     
     # --- Sección: Medición del Cráneo ---
     pdf.set_fill_color(200, 220, 255)
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Medición del Cráneo", ln=True, fill=True)
-    pdf.ln(2)
-    col_width = (pdf.w - 20) / 2  # Dividir el ancho disponible en dos columnas
+    pdf.cell(0, 8, "Medición del Cráneo", ln=True, fill=True)
+    pdf.ln(1)
+    col_width = (pdf.w - 20) / 2  # ancho para cada columna
     start_y = pdf.get_y()
     
     if "cranio_metrics" in st.session_state:
@@ -212,42 +212,41 @@ def generate_pdf_report(patient_data):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
             cv2.imwrite(tmp_file.name, st.session_state.cranio_image)
             image_path = tmp_file.name
-        # Columna izquierda: imagen
-        pdf.image(image_path, x=10, y=start_y, w=col_width - 2)
-        # Columna derecha: métricas
+        # Columna izquierda: imagen más pequeña (80% del ancho de la columna)
+        image_width = col_width * 0.8
+        pdf.image(image_path, x=10, y=start_y, w=image_width)
+        # Columna derecha: métricas con menor altura de línea (7)
         pdf.set_xy(10 + col_width, start_y)
         pdf.set_font("Arial", "", 12)
         for key, value in st.session_state.cranio_metrics.items():
-            pdf.cell(col_width, 10, f"{key}: {value}", ln=True)
-        pdf.ln(10)
+            pdf.cell(col_width, 7, f"{key}: {value}", ln=True)
+        pdf.ln(5)
         os.remove(image_path)
     else:
-        pdf.cell(0, 10, "No se realizaron análisis del cráneo.", ln=True)
-    pdf.ln(5)
+        pdf.cell(0, 8, "No se realizaron análisis del cráneo.", ln=True)
+    pdf.ln(3)
     
     # --- Sección: Segmentación del Tumor ---
     pdf.set_fill_color(255, 200, 200)
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Segmentación del Tumor", ln=True, fill=True)
-    pdf.ln(2)
+    pdf.cell(0, 8, "Segmentación del Tumor", ln=True, fill=True)
+    pdf.ln(1)
     start_y = pdf.get_y()
     
     if "tumor_metrics" in st.session_state:
-        # Guardar imagen del tumor en un archivo temporal
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
             cv2.imwrite(tmp_file.name, st.session_state.tumor_image)
             image_path = tmp_file.name
-        # Columna izquierda: imagen
-        pdf.image(image_path, x=10, y=start_y, w=col_width - 2)
-        # Columna derecha: métricas
+        image_width = col_width * 0.8
+        pdf.image(image_path, x=10, y=start_y, w=image_width)
         pdf.set_xy(10 + col_width, start_y)
         pdf.set_font("Arial", "", 12)
         for key, value in st.session_state.tumor_metrics.items():
-            pdf.cell(col_width, 10, f"{key}: {value}", ln=True)
-        pdf.ln(10)
+            pdf.cell(col_width, 7, f"{key}: {value}", ln=True)
+        pdf.ln(5)
         os.remove(image_path)
     else:
-        pdf.cell(0, 10, "No se realizaron análisis del tumor.", ln=True)
+        pdf.cell(0, 8, "No se realizaron análisis del tumor.", ln=True)
     
     pdf_bytes = pdf.output(dest="S").encode("latin1")
     return pdf_bytes
