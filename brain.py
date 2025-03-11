@@ -14,31 +14,30 @@ st.set_page_config(
     page_title="🧠 Detección y Segmentación de Tumores Cerebrales",
     initial_sidebar_state="collapsed"  # Sidebar oculta al iniciar
 )
-st.sidebar.title("📌 Configuración")
 
-# Selección de página: análisis o reporte
-page = st.sidebar.radio("Selecciona una sección:", ["Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
+# Opciones de la sidebar: se agregó "Inicio"
+page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
 
-# Mostrar portada en la interfaz de la app (excepto en Reporte PDF)
-if page != "Reporte PDF":
+# Si estamos en la página de inicio, se muestra la portada en grande
+if page == "Inicio":
     try:
-        st.image("portada.jpg", width=800)  # Imagen más grande
+        st.image("portada.jpg", width=800)
+        st.markdown("<h2 style='text-align: center;'>Bienvenido a la aplicación de Diagnóstico</h2>", unsafe_allow_html=True)
     except Exception as e:
         st.warning("No se encontró la imagen de portada.")
 
-# Subida de imagen (solo para análisis)
-if page != "Reporte PDF":
+# Para secciones de análisis se habilita la carga de imagen y se carga el modelo
+if page in ["Análisis Craneal", "Análisis del Tumor"]:
     uploaded_file = st.sidebar.file_uploader("📸 Subir imagen médica (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
-
-# =================== CARGAR MODELO ===================
-st.sidebar.write("📥 Cargando modelo 2025-19-02_VGG_model.h5...")
-model_path = "2025-19-02_VGG_model.h5"
-try:
-    model = load_model(model_path, compile=False)
-    st.sidebar.success("✅ Modelo cargado exitosamente")
-except Exception as e:
-    st.sidebar.error(f"❌ Error al cargar el modelo: {str(e)}")
-    st.stop()
+    
+    st.sidebar.write("📥 Cargando modelo 2025-19-02_VGG_model.h5...")
+    model_path = "2025-19-02_VGG_model.h5"
+    try:
+        model = load_model(model_path, compile=False)
+        st.sidebar.success("✅ Modelo cargado exitosamente")
+    except Exception as e:
+        st.sidebar.error(f"❌ Error al cargar el modelo: {str(e)}")
+        st.stop()
 
 # ---------------------------------------------------------------------------
 # Función para Análisis Craneal
@@ -128,7 +127,7 @@ def analyze_tumor(image, model):
     
     if tumor_detected:
         st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando...**")
-        pixel_spacing = 0.04  # Ajusta según la resolución
+        pixel_spacing = 0.04
         
         if len(image.shape) == 3:
             gray_seg = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -181,7 +180,7 @@ def analyze_tumor(image, model):
         st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
 
 # ---------------------------------------------------------------------------
-# Función auxiliar: coloca imagen a la izquierda y métricas a la derecha
+# Función auxiliar para PDF: coloca imagen a la izquierda y métricas a la derecha
 def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
     r, g, b = fill_color
     pdf.set_fill_color(r, g, b)
@@ -213,7 +212,7 @@ def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
     pdf.ln(1)
 
 # ---------------------------------------------------------------------------
-# Función para generar el reporte PDF (con portada en la 1ra página)
+# Función para generar el reporte PDF (incluye portada en la 1ra página)
 def generate_pdf_report(patient_data):
     pdf = FPDF()
     
@@ -224,6 +223,7 @@ def generate_pdf_report(patient_data):
     except Exception as e:
         pass
     
+    # Segunda página con el contenido
     pdf.add_page()
     
     pdf.set_fill_color(50, 150, 250)
