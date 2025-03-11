@@ -176,7 +176,48 @@ def analyze_tumor(image, model):
         st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
 
 # ---------------------------------------------------------------------------
-# Función para generar el reporte PDF con imágenes más pequeñas y menor espaciado
+# Función auxiliar: coloca imagen a la izquierda y métricas a la derecha
+def add_section_with_image_and_metrics(pdf, fill_color, title, image, metrics):
+    # Encabezado de sección
+    r, g, b = fill_color
+    pdf.set_fill_color(r, g, b)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 8, title, ln=True, fill=True)
+    pdf.ln(1)
+    
+    # Coordenadas y tamaño de la imagen
+    start_y = pdf.get_y()
+    x_image = 10
+    image_width = 40
+    image_height = 40  # forzamos un tamaño fijo
+    line_height = 5
+    
+    # Guardar imagen temporal y colocarla en PDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
+        cv2.imwrite(tmp_file.name, image)
+        image_path = tmp_file.name
+    pdf.image(image_path, x=x_image, y=start_y, w=image_width, h=image_height)
+    os.remove(image_path)
+
+    # Métricas a la derecha
+    x_text = x_image + image_width + 5
+    pdf.set_xy(x_text, start_y)
+    pdf.set_font("Arial", "", 12)
+
+    # Imprimir cada métrica en una línea
+    for key, value in metrics.items():
+        pdf.cell(0, line_height, f"{key}: {value}", ln=True)
+
+    # Calculamos la altura total del texto
+    text_block_height = len(metrics) * line_height
+    
+    # Bajamos el cursor hasta debajo de la imagen o del texto, lo que sea más grande
+    new_y = start_y + max(image_height, text_block_height) + 5
+    pdf.set_y(new_y)
+    pdf.ln(1)
+
+# ---------------------------------------------------------------------------
+# Función para generar el reporte PDF
 def generate_pdf_report(patient_data):
     pdf = FPDF()
     pdf.add_page()
@@ -192,62 +233,48 @@ def generate_pdf_report(patient_data):
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 8, "Datos del Paciente", ln=True)
     pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 8, f"Nombre: {patient_data['nombre']}", ln=True)
-    pdf.cell(0, 8, f"Edad: {patient_data['edad']}", ln=True)
-    pdf.cell(0, 8, f"Sexo: {patient_data['sexo']}", ln=True)
-    pdf.cell(0, 8, f"Fecha de estudio: {patient_data['fecha']}", ln=True)
-    pdf.multi_cell(0, 8, f"Observaciones: {patient_data['observaciones']}")
+    pdf.cell(0, 6, f"Nombre: {patient_data['nombre']}", ln=True)
+    pdf.cell(0, 6, f"Edad: {patient_data['edad']}", ln=True)
+    pdf.cell(0, 6, f"Sexo: {patient_data['sexo']}", ln=True)
+    pdf.cell(0, 6, f"Fecha de estudio: {patient_data['fecha']}", ln=True)
+    pdf.multi_cell(0, 6, f"Observaciones: {patient_data['observaciones']}")
     pdf.ln(3)
     
-    # --- Sección: Medición del Cráneo ---
-    pdf.set_fill_color(200, 220, 255)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 8, "Medición del Cráneo", ln=True, fill=True)
-    pdf.ln(1)
-    col_width = (pdf.w - 20) / 2  # ancho para cada columna
-    start_y = pdf.get_y()
-    
+    # Medición del Cráneo
     if "cranio_metrics" in st.session_state:
-        # Guardar imagen en un archivo temporal
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
-            cv2.imwrite(tmp_file.name, st.session_state.cranio_image)
-            image_path = tmp_file.name
-        # Columna izquierda: imagen más pequeña (80% del ancho de la columna)
-        image_width = col_width * 0.8
-        pdf.image(image_path, x=10, y=start_y, w=image_width)
-        # Columna derecha: métricas con menor altura de línea (7)
-        pdf.set_xy(10 + col_width, start_y)
-        pdf.set_font("Arial", "", 12)
-        for key, value in st.session_state.cranio_metrics.items():
-            pdf.cell(col_width, 7, f"{key}: {value}", ln=True)
-        pdf.ln(5)
-        os.remove(image_path)
+        add_section_with_image_and_metrics(
+            pdf,
+            fill_color=(200, 220, 255),
+            title="Medición del Cráneo",
+            image=st.session_state.cranio_image,
+            metrics=st.session_state.cranio_metrics
+        )
     else:
-        pdf.cell(0, 8, "No se realizaron análisis del cráneo.", ln=True)
-    pdf.ln(3)
+        pdf.set_font("Arial", "B", 14)
+        pdf.set_fill_color(200, 220, 255)
+        pdf.cell(0, 8, "Medición del Cráneo", ln=True, fill=True)
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 6, "No se realizaron análisis del cráneo.", ln=True)
+        pdf.ln(5)
     
-    # --- Sección: Segmentación del Tumor ---
-    pdf.set_fill_color(255, 200, 200)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 8, "Segmentación del Tumor", ln=True, fill=True)
-    pdf.ln(1)
-    start_y = pdf.get_y()
-    
+    # Segmentación del Tumor
     if "tumor_metrics" in st.session_state:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
-            cv2.imwrite(tmp_file.name, st.session_state.tumor_image)
-            image_path = tmp_file.name
-        image_width = col_width * 0.8
-        pdf.image(image_path, x=10, y=start_y, w=image_width)
-        pdf.set_xy(10 + col_width, start_y)
-        pdf.set_font("Arial", "", 12)
-        for key, value in st.session_state.tumor_metrics.items():
-            pdf.cell(col_width, 7, f"{key}: {value}", ln=True)
-        pdf.ln(5)
-        os.remove(image_path)
+        add_section_with_image_and_metrics(
+            pdf,
+            fill_color=(255, 200, 200),
+            title="Segmentación del Tumor",
+            image=st.session_state.tumor_image,
+            metrics=st.session_state.tumor_metrics
+        )
     else:
-        pdf.cell(0, 8, "No se realizaron análisis del tumor.", ln=True)
+        pdf.set_font("Arial", "B", 14)
+        pdf.set_fill_color(255, 200, 200)
+        pdf.cell(0, 8, "Segmentación del Tumor", ln=True, fill=True)
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 6, "No se realizaron análisis del tumor.", ln=True)
+        pdf.ln(5)
     
+    # Generar bytes del PDF
     pdf_bytes = pdf.output(dest="S").encode("latin1")
     return pdf_bytes
 
