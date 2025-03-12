@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # Definir nombres de clases según el entrenamiento
-tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitary"]
+tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
 
 # Opciones de la sidebar
 page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor", "Reporte PDF"])
@@ -38,7 +38,7 @@ if page == "Análisis del Tumor":
         st.stop()
 
 # ---------------------------------------------------------------------------
-# Función para Análisis del Tumor con segmentación
+# Función para Análisis del Tumor
 
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
@@ -53,7 +53,7 @@ def analyze_tumor(image, model):
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     try:
-        image_resized = cv2.resize(image_rgb, (100, 100)) / 255.0  # Imagen más pequeña
+        image_resized = cv2.resize(image_rgb, (150, 150)) / 255.0
         image_array = np.expand_dims(image_resized, axis=0)
     except Exception as e:
         st.error(f"Error al procesar la imagen: {str(e)}")
@@ -77,18 +77,10 @@ def analyze_tumor(image, model):
     else:
         st.success("✅ **El modelo no detectó un tumor en la imagen.**")
     
-    # Segmentación del tumor con umbralización
-    gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-    _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
-    segmented_image = cv2.bitwise_and(image_rgb, image_rgb, mask=thresh)
-    
-    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-    ax[0].imshow(image_rgb)
-    ax[0].set_title("Imagen Original")
-    ax[0].axis('off')
-    ax[1].imshow(segmented_image)
-    ax[1].set_title("Área Segmentada del Tumor")
-    ax[1].axis('off')
+    fig, ax = plt.subplots()
+    ax.imshow(image_rgb)
+    ax.set_title(f"Predicción: {predicted_class}")
+    ax.axis('off')
     st.pyplot(fig)
 
 # ---------------------------------------------------------------------------
