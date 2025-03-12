@@ -77,7 +77,7 @@ def analyze_tumor(image, model):
         st.success("✅ **El modelo no detectó un tumor en la imagen.**")
     
     # Mostrar la imagen original con tamaño reducido
-    st.image(cv2.resize(image_rgb, (200, 200)), caption="Imagen Médica", use_container_width=False)
+    st.image(cv2.resize(image_rgb, (400, 400)), caption="Imagen Médica", use_container_width=False)
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
