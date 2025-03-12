@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # Definir nombres de clases según el entrenamiento
-tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
+tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitary"]
 
 # Opciones de la sidebar
 page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor"])
