@@ -15,6 +15,9 @@ st.set_page_config(
 # Definir nombres de clases según el entrenamiento
 tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
 
+# Tamaño de imagen esperado por el modelo (ajústalo si es diferente)
+IMAGE_SIZE = (150, 150)  # Se ajusta al tamaño esperado por el modelo
+
 # Opciones de la sidebar
 page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor"])
 
@@ -53,7 +56,7 @@ def analyze_tumor(image, model):
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     try:
-        image_resized = cv2.resize(image_rgb, (80, 80)) / 255.0  # Imagen mucho más pequeña
+        image_resized = cv2.resize(image_rgb, IMAGE_SIZE) / 255.0  # Ajustar al tamaño esperado
         image_array = np.expand_dims(image_resized, axis=0)
     except Exception as e:
         st.error(f"Error al procesar la imagen: {str(e)}")
