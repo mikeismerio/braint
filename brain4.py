@@ -2,31 +2,29 @@ import streamlit as st
 import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
-import sys
-from fpdf import FPDF
-import io
-import tempfile
-import os
+from tensorflow.keras.preprocessing.image import img_to_array
+import matplotlib.pyplot as plt
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(
     layout="wide",
     page_title="🧠 Detección y Segmentación de Tumores Cerebrales",
-    initial_sidebar_state="collapsed"  # Sidebar oculta al iniciar
+    initial_sidebar_state="collapsed"
 )
 
-# Opciones de la sidebar: se agregó "Inicio"
+# Definir nombres de clases según el entrenamiento
+tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
+
+# Opciones de la sidebar
 page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
 
-# Si estamos en la página de inicio, se muestra la portada en grande
 if page == "Inicio":
     try:
         st.image("portada.jpg", width=800)
         st.markdown("<h2 style='text-align: center;'>Bienvenido a la aplicación de Diagnóstico</h2>", unsafe_allow_html=True)
-    except Exception as e:
+    except Exception:
         st.warning("No se encontró la imagen de portada.")
 
-# Para secciones de análisis se habilita la carga de imagen y se carga el modelo
 if page in ["Análisis Craneal", "Análisis del Tumor"]:
     uploaded_file = st.sidebar.file_uploader("📸 Subir imagen médica (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
     
@@ -44,33 +42,37 @@ if page in ["Análisis Craneal", "Análisis del Tumor"]:
 
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
-    if len(image.shape) == 2:
-        image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    else:
-        image_color = image.copy()
-    image_rgb = cv2.cvtColor(image_color, cv2.COLOR_BGR2RGB)
     
-    image_resized = cv2.resize(image, (224, 224))
-    if len(image_resized.shape) == 2:
-        image_rgb_resized = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
+    # Convertir la imagen a RGB si es en escala de grises
+    if len(image.shape) == 2:
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     else:
-        image_rgb_resized = cv2.resize(image_rgb, (224, 224))
-    image_array = np.expand_dims(image_rgb_resized, axis=0)
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    # Redimensionar y normalizar la imagen
+    image_resized = cv2.resize(image_rgb, (150, 150)) / 255.0
+    image_array = np.expand_dims(image_resized, axis=0)
     
     st.write("🔍 **Analizando la imagen...**")
     prediction = model.predict(image_array)
-    probability = prediction[0][0]
-    threshold = 0.7
-    tumor_detected = probability >= threshold
-    diagnosis = "Tumor Detectado" if tumor_detected else "No se detectó Tumor"
+    predicted_class_idx = np.argmax(pred, axis=1)[0]
+    predicted_class = tumor_classes[predicted_class_idx]
+    probability = pred[0][predicted_class_idx]
     
-    st.subheader(f"📌 **Diagnóstico del Modelo:** `{diagnosis}`")
-    st.write(f"📊 **Probabilidad de Tumor:** `{probability:.2%}`")
+    st.subheader(f"📌 **Diagnóstico del Modelo:** `{predicted_class}`")
+    st.write(f"📊 **Probabilidad de Clasificación:** `{probability:.2%}`")
     
-    if tumor_detected:
+    if predicted_class != "No Tumor":
         st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
     else:
-        st.success("✅ **El modelo no detectó un tumor significativo en la imagen.**")
+        st.success("✅ **El modelo no detectó un tumor en la imagen.**")
+    
+    # Mostrar la imagen con el resultado
+    fig, ax = plt.subplots()
+    ax.imshow(image_rgb)
+    ax.set_title(f"Predicción: {predicted_class}")
+    ax.axis('off')
+    st.pyplot(fig)
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
