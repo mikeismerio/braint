@@ -14,22 +14,19 @@ st.set_page_config(
 # Definir nombres de clases según el entrenamiento
 tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
 
-# Tamaño de imagen esperado por el modelo (ajústalo si es diferente)
-IMAGE_SIZE = (80, 80)  # Se ajusta a un tamaño más pequeño para optimización
-
-# Opciones de la sidebar
+# Sidebar para cargar la imagen y el modelo
 page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor"])
 
 if page == "Inicio":
     try:
-        st.image("portada.jpg", width=400)
+        st.image("portada.jpg", width=800)
         st.markdown("<h2 style='text-align: center;'>Bienvenido a la aplicación de Diagnóstico</h2>", unsafe_allow_html=True)
     except Exception:
         st.warning("No se encontró la imagen de portada.")
 
 if page == "Análisis del Tumor":
     uploaded_file = st.sidebar.file_uploader("📸 Subir imagen médica (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
-    
+
     st.sidebar.write("📥 Cargando modelo modelo4.keras...")
     model_path = "modelo4.keras"
     try:
@@ -40,7 +37,7 @@ if page == "Análisis del Tumor":
         st.stop()
 
 # ---------------------------------------------------------------------------
-# Función para Análisis del Tumor con segmentación
+# Función para Análisis del Tumor
 
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
@@ -49,18 +46,16 @@ def analyze_tumor(image, model):
         st.error("Error: La imagen no pudo ser procesada correctamente.")
         return
     
+    # Convertir a RGB si la imagen está en escala de grises
     if len(image.shape) == 2:
         image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     else:
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    try:
-        image_resized = cv2.resize(image_rgb, IMAGE_SIZE) / 255.0  # Ajustar al tamaño esperado
-        image_array = np.expand_dims(image_resized, axis=0)
-    except Exception as e:
-        st.error(f"Error al procesar la imagen: {str(e)}")
-        return
-    
+    # Redimensionar la imagen al tamaño que espera el modelo
+    image_resized = cv2.resize(image_rgb, (224, 224)) / 255.0
+    image_array = np.expand_dims(image_resized, axis=0)
+
     st.write("🔍 **Analizando la imagen...**")
     try:
         prediction = model.predict(image_array)
@@ -75,26 +70,48 @@ def analyze_tumor(image, model):
     st.write(f"📊 **Probabilidad de Clasificación:** `{probability:.2%}`")
     
     if predicted_class != "No Tumor":
-        st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
+        st.warning("⚠️ **El modelo ha detectado un posible tumor. Segmentando el área...**")
+        
+        # Convertir a escala de grises para segmentación
+        gray_image = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
+        
+        # Aplicar desenfoque para reducir ruido
+        blurred = cv2.GaussianBlur(gray_image, (7, 7), 2)
+        
+        # Umbralización adaptativa para segmentación
+        _, thresholded = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
+
+        # Encontrar contornos del tumor
+        contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if contours:
+            # Seleccionar el contorno más grande (posible tumor)
+            tumor_contour = max(contours, key=cv2.contourArea)
+            
+            # Dibujar contorno en la imagen original
+            tumor_image = image_rgb.copy()
+            cv2.drawContours(tumor_image, [tumor_contour], -1, (0, 255, 0), 2)
+            
+            # Crear máscara de la región del tumor
+            mask = np.zeros_like(gray_image, dtype=np.uint8)
+            cv2.drawContours(mask, [tumor_contour], -1, 255, thickness=cv2.FILLED)
+            segmented_tumor = cv2.bitwise_and(gray_image, gray_image, mask=mask)
+
+            # Aplicar mapa de calor
+            heatmap = cv2.applyColorMap(segmented_tumor, cv2.COLORMAP_JET)
+            heatmap = cv2.addWeighted(image_rgb, 0.6, heatmap, 0.4, 0)
+
+            # Mostrar imágenes en paralelo
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(image_rgb, caption="Imagen Original", width=300)
+            with col2:
+                st.image(heatmap, caption="Segmentación del Tumor", width=300)
+
+        else:
+            st.error("❌ No se detectaron contornos significativos para el tumor.")
     else:
         st.success("✅ **El modelo no detectó un tumor en la imagen.**")
-    
-    # Segmentación del tumor basada en la detección de bordes
-    gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-    blurred = cv2.GaussianBlur(gray, (7, 7), 2)
-    edges = cv2.Canny(blurred, 30, 100)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    closed_edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
-    contours, _ = cv2.findContours(closed_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    segmented_image = image_rgb.copy()
-    cv2.drawContours(segmented_image, contours, -1, (0, 255, 0), 2)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.image(cv2.resize(image_rgb, (120, 120)), caption="Imagen Original", use_column_width=True)
-    with col2:
-        st.image(cv2.resize(segmented_image, (120, 120)), caption="Área Segmentada del Tumor", use_column_width=True)
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
