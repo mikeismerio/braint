@@ -16,7 +16,7 @@ st.set_page_config(
 tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
 
 # Opciones de la sidebar
-page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis Craneal", "Análisis del Tumor", "Reporte PDF"])
+page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor", "Reporte PDF"])
 
 if page == "Inicio":
     try:
@@ -25,7 +25,7 @@ if page == "Inicio":
     except Exception:
         st.warning("No se encontró la imagen de portada.")
 
-if page in ["Análisis Craneal", "Análisis del Tumor"]:
+if page == "Análisis del Tumor":
     uploaded_file = st.sidebar.file_uploader("📸 Subir imagen médica (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
     
     st.sidebar.write("📥 Cargando modelo modelo4.keras...")
@@ -43,21 +43,31 @@ if page in ["Análisis Craneal", "Análisis del Tumor"]:
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
     
-    # Convertir la imagen a RGB si es en escala de grises
+    if image is None or image.size == 0:
+        st.error("Error: La imagen no pudo ser procesada correctamente.")
+        return
+    
     if len(image.shape) == 2:
         image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     else:
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    # Redimensionar y normalizar la imagen
-    image_resized = cv2.resize(image_rgb, (150, 150)) / 255.0
-    image_array = np.expand_dims(image_resized, axis=0)
+    try:
+        image_resized = cv2.resize(image_rgb, (150, 150)) / 255.0
+        image_array = np.expand_dims(image_resized, axis=0)
+    except Exception as e:
+        st.error(f"Error al procesar la imagen: {str(e)}")
+        return
     
     st.write("🔍 **Analizando la imagen...**")
-    prediction = model.predict(image_array)
-    predicted_class_idx = np.argmax(pred, axis=1)[0]
-    predicted_class = tumor_classes[predicted_class_idx]
-    probability = pred[0][predicted_class_idx]
+    try:
+        prediction = model.predict(image_array)
+        predicted_class_idx = np.argmax(prediction, axis=1)[0]
+        predicted_class = tumor_classes[predicted_class_idx]
+        probability = prediction[0][predicted_class_idx]
+    except Exception as e:
+        st.error(f"Error al realizar la predicción: {str(e)}")
+        return
     
     st.subheader(f"📌 **Diagnóstico del Modelo:** `{predicted_class}`")
     st.write(f"📊 **Probabilidad de Clasificación:** `{probability:.2%}`")
@@ -67,7 +77,6 @@ def analyze_tumor(image, model):
     else:
         st.success("✅ **El modelo no detectó un tumor en la imagen.**")
     
-    # Mostrar la imagen con el resultado
     fig, ax = plt.subplots()
     ax.imshow(image_rgb)
     ax.set_title(f"Predicción: {predicted_class}")
@@ -76,13 +85,13 @@ def analyze_tumor(image, model):
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
-if page in ["Análisis Craneal", "Análisis del Tumor"]:
+if page == "Análisis del Tumor":
     if uploaded_file:
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
-        if image is not None:
-            if page == "Análisis del Tumor":
-                analyze_tumor(image, model)
+        
+        if image is not None and image.size > 0:
+            analyze_tumor(image, model)
         else:
             st.error("Error al cargar la imagen. Verifica el formato y contenido.")
     else:
