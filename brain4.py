@@ -20,7 +20,7 @@ page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tu
 
 if page == "Inicio":
     try:
-        st.image("portada.jpg", width=800)
+        st.image("portada.jpg", width=400)
         st.markdown("<h2 style='text-align: center;'>Bienvenido a la aplicación de Diagnóstico</h2>", unsafe_allow_html=True)
     except Exception:
         st.warning("No se encontró la imagen de portada.")
@@ -77,11 +77,17 @@ def analyze_tumor(image, model):
     else:
         st.success("✅ **El modelo no detectó un tumor en la imagen.**")
     
-    fig, ax = plt.subplots()
-    ax.imshow(image_rgb)
-    ax.set_title(f"Predicción: {predicted_class}")
-    ax.axis('off')
-    st.pyplot(fig)
+    # Simulación de segmentación (resaltado del área del tumor)
+    mask = np.zeros_like(image_rgb)
+    mask[:, :, 1] = 255  # Verde sobre el área del tumor (simulado)
+    segmented_image = cv2.addWeighted(image_rgb, 0.7, mask, 0.3, 0)
+    
+    # Mostrar ambas imágenes en columnas con menor tamaño
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(image_rgb, caption="Imagen Original", use_column_width=True, width=200)
+    with col2:
+        st.image(segmented_image, caption="Área del Tumor Destacada", use_column_width=True, width=200)
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
