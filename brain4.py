@@ -16,11 +16,11 @@ st.set_page_config(
 tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
 
 # Opciones de la sidebar
-page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor", "Reporte PDF"])
+page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor"])
 
 if page == "Inicio":
     try:
-        st.image("portada.jpg", width=800)
+        st.image("portada.jpg", width=400)
         st.markdown("<h2 style='text-align: center;'>Bienvenido a la aplicación de Diagnóstico</h2>", unsafe_allow_html=True)
     except Exception:
         st.warning("No se encontró la imagen de portada.")
@@ -38,7 +38,7 @@ if page == "Análisis del Tumor":
         st.stop()
 
 # ---------------------------------------------------------------------------
-# Función para Análisis del Tumor
+# Función para Análisis del Tumor con segmentación
 
 def analyze_tumor(image, model):
     st.title("🧠 Análisis del Tumor")
@@ -53,7 +53,7 @@ def analyze_tumor(image, model):
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     try:
-        image_resized = cv2.resize(image_rgb, (150, 150)) / 255.0
+        image_resized = cv2.resize(image_rgb, (80, 80)) / 255.0  # Imagen mucho más pequeña
         image_array = np.expand_dims(image_resized, axis=0)
     except Exception as e:
         st.error(f"Error al procesar la imagen: {str(e)}")
@@ -77,11 +77,16 @@ def analyze_tumor(image, model):
     else:
         st.success("✅ **El modelo no detectó un tumor en la imagen.**")
     
-    fig, ax = plt.subplots()
-    ax.imshow(image_rgb)
-    ax.set_title(f"Predicción: {predicted_class}")
-    ax.axis('off')
-    st.pyplot(fig)
+    # Segmentación del tumor con umbralización simple
+    gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
+    _, mask = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
+    segmented_image = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(cv2.resize(image_rgb, (150, 150)), caption="Imagen Original", use_column_width=True)
+    with col2:
+        st.image(cv2.resize(segmented_image, (150, 150)), caption="Área Probable del Tumor", use_column_width=True)
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
