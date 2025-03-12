@@ -19,7 +19,7 @@ page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tu
 
 if page == "Inicio":
     try:
-        st.image("portada.jpg", width=400)
+        st.image("portada.jpg", width=600)
         st.markdown("<h2 style='text-align: center;'>Bienvenido a la aplicación de Diagnóstico</h2>", unsafe_allow_html=True)
     except Exception:
         st.warning("No se encontró la imagen de portada.")
