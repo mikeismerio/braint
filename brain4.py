@@ -3,12 +3,11 @@ import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
-import matplotlib.pyplot as plt
 
 # =================== CONFIGURACIÓN DE LA PÁGINA ===================
 st.set_page_config(
     layout="wide",
-    page_title="🧠 Detección y Segmentación de Tumores Cerebrales",
+    page_title="🧠 Detección de Tumores Cerebrales",
     initial_sidebar_state="collapsed"
 )
 
@@ -16,7 +15,7 @@ st.set_page_config(
 tumor_classes = ["Glioma", "Meningioma", "No Tumor", "Pituitario"]
 
 # Opciones de la sidebar
-page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor", "Reporte PDF"])
+page = st.sidebar.radio("Selecciona una sección:", ["Inicio", "Análisis del Tumor"])
 
 if page == "Inicio":
     try:
@@ -69,25 +68,16 @@ def analyze_tumor(image, model):
         st.error(f"Error al realizar la predicción: {str(e)}")
         return
     
-    st.subheader(f"📌 **Diagnóstico del Modelo:** `{predicted_class}`")
-    st.write(f"📊 **Probabilidad de Clasificación:** `{probability:.2%}`")
+    st.subheader(f"📌 **Diagnóstico del Modelo:** {predicted_class}")
+    st.write(f"📊 **Probabilidad de Clasificación:** {probability:.2%}")
     
     if predicted_class != "No Tumor":
         st.warning("⚠️ **El modelo ha detectado un posible tumor. Se recomienda un análisis más detallado.**")
     else:
         st.success("✅ **El modelo no detectó un tumor en la imagen.**")
     
-    # Simulación de segmentación (resaltado del área del tumor)
-    mask = np.zeros_like(image_rgb)
-    mask[:, :, 1] = 255  # Verde sobre el área del tumor (simulado)
-    segmented_image = cv2.addWeighted(image_rgb, 0.7, mask, 0.3, 0)
-    
-    # Mostrar ambas imágenes en columnas con menor tamaño
-    col1, col2 = st.columns(2)
-    with col1:
-        st.image(image_rgb, caption="Imagen Original", use_column_width=True, width=150)
-    with col2:
-        st.image(segmented_image, caption="Área del Tumor Destacada", use_column_width=True, width=150)
+    # Mostrar la imagen original
+    st.image(image_rgb, caption="Imagen Médica", use_column_width=True)
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
