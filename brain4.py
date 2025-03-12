@@ -85,9 +85,9 @@ def analyze_tumor(image, model):
     # Mostrar ambas imágenes en columnas con menor tamaño
     col1, col2 = st.columns(2)
     with col1:
-        st.image(image_rgb, caption="Imagen Original", use_column_width=True, width=200)
+        st.image(image_rgb, caption="Imagen Original", use_column_width=True, width=150)
     with col2:
-        st.image(segmented_image, caption="Área del Tumor Destacada", use_column_width=True, width=200)
+        st.image(segmented_image, caption="Área del Tumor Destacada", use_column_width=True, width=150)
 
 # ---------------------------------------------------------------------------
 # Procesamiento según la sección seleccionada
